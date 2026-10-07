@@ -11,60 +11,11 @@ from pathlib import Path
 import tomllib
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
 
-from deeponet_chem.dataset import TracerDataset
-from deeponet_chem.deep_o_net import DeepONet
 from deeponet_chem.trainer import Trainer
+from deeponet_chem.train_setup import setup_data_loaders
+from deeponet_chem.train_setup import setup_model_and_optimizer
 
-
-def setup_data_loaders(paths, train_cfg):
-    """
-    """
-    out_dir = Path(paths.get("output_dir", "."))
-    metadata_path = out_dir / paths["metadata_file"]
-
-    train_dataset = TracerDataset(
-        out_dir / paths["train_data"],
-        metadata_path,
-        "num_train_tracers",
-    )
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=train_cfg["batch_size"],
-        shuffle=train_cfg.get("shuffle_train", True),
-    )
-
-    valid_dataset = TracerDataset(
-        out_dir / paths["valid_data"],
-        metadata_path,
-        "num_valid_tracers",
-    )
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size=train_cfg["batch_size"],
-        shuffle=False,
-    )
-    
-    return train_loader, valid_loader
-
-
-def setup_model_and_optimizer(model_cfg, train_cfg, device):
-    """
-    """
-    model = DeepONet(
-        model_cfg["branch_dim"],
-        model_cfg["trunk_dim"],
-        model_cfg["output_dim"],
-    ).to(device)
-
-    optimizer = optim.Adam(
-        model.parameters(),
-        lr           = train_cfg["learning_rate"],
-        weight_decay = train_cfg.get("weight_decay", 0.0),
-    )
-    return model, optimizer
 
 
 def main(paths, model_cfg, train_cfg):

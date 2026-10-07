@@ -9,6 +9,13 @@ Created on Mon Sep 28 10:01:25 2026
 import torch
 import torch.nn as nn
 
+ACTIVATIONS = {
+    'tanh' : nn.Tanh,
+    'gelu' : nn.GELU,
+    'silu' : nn.SiLU,
+    'selu' : nn.SELU
+}
+
 
 class DeepONet(nn.Module):
     
@@ -20,7 +27,8 @@ class DeepONet(nn.Module):
             branch_size=70, 
             branch_layers=4,
             trunk_size=70, 
-            trunk_layers=4
+            trunk_layers=4,
+            activation='tanh'
         ):
         """
         DeepONet for solving IVPs.
@@ -40,28 +48,40 @@ class DeepONet(nn.Module):
 
         # Define the Branch Network
         self.branch_net = self._build_network(
-            input_size, branch_size, branch_layers, latent_size * output_size
+            input_size, 
+            branch_size, 
+            branch_layers, 
+            latent_size * output_size,
+            activation
         )
 
         # Define the Trunk Network
         self.trunk_net = self._build_network(
-            1, trunk_size, trunk_layers, latent_size
+            1, trunk_size, trunk_layers, latent_size, activation
         )
 
 
-    def _build_network(self, input_size, layer_size, num_layers, output_size):
+    def _build_network(
+            self, 
+            input_size, 
+            layer_size, 
+            num_layers, 
+            output_size,
+            activation
+        ):
         """Helper function to build a multi-layer perceptron."""
+        Activation = ACTIVATIONS[activation]
         layers = []
         
         curr_size = input_size
         next_size = layer_size
         for _ in range(num_layers - 1):
             layers.append(nn.Linear(curr_size, next_size))
-            layers.append(nn.Tanh())
+            layers.append(Activation())
             curr_size = layer_size
             
         layers.append(nn.Linear(curr_size, output_size))
-        layers.append(nn.Tanh())
+        layers.append(Activation())
 
         return nn.Sequential(*layers)
 

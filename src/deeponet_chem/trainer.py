@@ -8,6 +8,7 @@ Created on Mon Sep 28 10:09:07 2026
 
 import os
 import torch
+import optuna
 
 from collections import defaultdict
 
@@ -85,7 +86,7 @@ class Trainer:
             running_loss += loss.item()
             
             if (batch_idx % 140 == 0):
-                message = f'\rBatch {batch_idx+1}/{dataset_size}'
+                message = f'\rBatch {batch_idx}/{dataset_size}'
                 message += f' loss = {loss.item()}'
                 print(message, end='')
             
@@ -131,7 +132,7 @@ class Trainer:
                 # loss_pred_iter += loss.item()
                 
                 if (batch_idx % 140 == 0):
-                    message = f'\rBatch {batch_idx+1}/{dataset_size}'
+                    message = f'\rBatch {batch_idx}/{dataset_size}'
                     message += f' loss = {loss.item()}'
                     print(message, end='')
                 
@@ -178,6 +179,28 @@ class Trainer:
                 self.best_valid_loss = valid_loss
                 self.save_checkpoint(epoch, save_path)
                 print(f"Saved model with validation loss: {valid_loss}")
+                
+                
+    def train_with_optuna(self, trial, epochs = 50):
+        """Trains the model while reporting losses to Optuna for pruning."""
+        best_valid_loss = float("inf")
+
+        for epoch in range(epochs):
+            self.train_epoch()
+            results = self.validate_epoch()
+            valid_loss = results['valid_loss']
+
+            # Report intermediate validation loss to Optuna
+            trial.report(valid_loss, step=epoch)
+
+            # Check if Optuna thinks this trial should be pruned early
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+            if valid_loss < best_valid_loss:
+                best_valid_loss = valid_loss
+
+        return best_valid_loss
                 
                 
     def update_history(self, epoch_metadata):

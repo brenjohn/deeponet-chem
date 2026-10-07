@@ -1,19 +1,21 @@
 [paths]
-raw_data = "./nelson_pdfac_charge/piecewise_constant/R0.1_M6_trace_cells.npy"
-output_dir = "."
-metadata_file = "./data/metadata.json"
-train_data = "./data/train_dataset.npy"
-valid_data = "./data/valid_dataset.npy"
+data_dir         = "./data/"
+metadata_file    = "metadata.json"
+train_data       = "train_dataset.npy"
+valid_data       = "valid_dataset.npy"
 model_checkpoint = "best_model.pth"
 
 [model]
-branch_dim = 14
-trunk_dim = 35
-output_dim = 21
+output_size   = 14
+input_size    = 21
+latent_size   = 35
+branch_size   = 70 
+branch_layers = 4
+trunk_size    = 70 
+trunk_layers  = 4
 
 [training]
 learning_rate = 1e-6
-weight_decay = 0.0
-batch_size = 64
-num_epochs = 210
-shuffle_train = true
+weight_decay  = 0.0
+batch_size    = 64
+num_epochs    = 210

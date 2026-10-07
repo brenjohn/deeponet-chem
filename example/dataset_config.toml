@@ -1,18 +1,18 @@
 [paths]
-raw_data = "../data/nelson_pdfac_charge/piecewise_constant/R0.1_M6_trace_cells.npy"
-output_dir = "./data"
+raw_data      = "../data/nelson_pdfac_charge/piecewise_constant/R0.1_M6_trace_cells.npy"
+output_dir    = "./data"
 metadata_file = "metadata.json"
-train_output = "train_dataset.npy"
-valid_output = "valid_dataset.npy"
+train_output  = "train_dataset.npy"
+valid_output  = "valid_dataset.npy"
 
 [data_dimensions]
-n_species = 14
-n_params = 7
+n_species       = 14
+n_params        = 7
 rows_per_tracer = 4016
-chem_per_hydro = 5
+chem_per_hydro  = 5
 density_col_idx = 2
 
 [split_parameters]
-num_bins = 10
+num_bins    = 10
 train_ratio = 0.8
-seed = 42
+seed        = 42

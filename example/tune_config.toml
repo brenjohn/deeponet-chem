@@ -1,0 +1,30 @@
+[optuna]
+study_name = "deeponet_chem_hpo"
+direction  = "minimize"
+n_trials   = 4
+storage    = "sqlite:///optuna_study.db"
+
+[paths]
+data_dir      = "./data/"
+metadata_file = "metadata.json"
+train_data    = "train_dataset.npy"
+valid_data    = "valid_dataset.npy"
+
+[model]
+output_size = 14
+input_size  = 21
+
+[training]
+num_epochs = 2
+
+[search_space]
+# Define distributions explicitly
+activation    = { type = "categorical", choices = ["tanh", "gelu", "silu"] }
+latent_size   = { type = "categorical", choices = [16, 32, 64] }
+branch_size   = { type = "categorical", choices = [32, 64, 128] }
+trunk_size    = { type = "categorical", choices = [32, 64, 128] }
+branch_layers = { type = "int", low = 2, high = 6 }
+trunk_layers  = { type = "int", low = 2, high = 6 }
+batch_size    = { type = "categorical", choices = [64, 128, 256] }
+learning_rate = { type = "float", low = 1e-4, high = 1e-2, log = true }
+weight_decay  = { type = "float", low = 0.0, high = 1e-2 }
