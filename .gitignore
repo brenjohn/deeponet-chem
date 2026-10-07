@@ -1,0 +1,40 @@
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build and Distribution artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Datasets and Large Binary Files
+*.npy
+*.npz
+*.h5
+*.hd5
+
+# Checkpoints and Logs
+*.pth
+*.pt
+*.ckpt
+outputs/
+logs/
+
+# IDE & Editor specific settings
+.vscode/
+.idea/
+.spyderpy3/
+*.swp
+
+# OS generated files
+.DS_Store
+Thumbs.db
