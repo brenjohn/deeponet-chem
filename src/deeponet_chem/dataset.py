@@ -6,7 +6,6 @@ Created on Mon Sep 28 10:14:45 2026
 @author: jbrennan
 """
 
-import json
 import torch
 import numpy as np
 
@@ -19,21 +18,19 @@ class OneStepTracerDataset(Dataset):
     def __init__(
             self, 
             dataset_path,
-            metadata_path,
-            num_tracers_key
+            metadata,
+            num_tracers
         ):
-        self.dataset_path    = dataset_path
-        self.metadata_path   = metadata_path
-        self.num_tracers_key = num_tracers_key
+        self.dataset_path = dataset_path
+        self.metadata     = metadata
+        self.num_tracers  = num_tracers
         
         self.data = np.load(dataset_path, mmap_mode="r")
-        with open(metadata_path, 'r') as file:
-            self.metadata = json.load(file)
         
         self.n_params        = self.metadata['n_params']
-        self.num_tracers     = self.metadata[num_tracers_key]
         self.rows_per_tracer = self.metadata['rows_per_tracer']
         self.num_hydro_steps = self.metadata['num_hydro_steps']
+        self.chem_per_hydro  = self.metadata['chem_per_hydro']
         
         dt_min = self.metadata['bounds']['dt_min']
         dt_max = self.metadata['bounds']['dt_max']
@@ -45,19 +42,22 @@ class OneStepTracerDataset(Dataset):
 
 
     def __len__(self):
-        return self.num_tracers * self.num_hydro_steps
+        return self.num_tracers * self.num_hydro_steps * self.chem_per_hydro
 
 
     def __getitem__(self, idx):
-        tracer = self.rows_per_tracer * idx // self.num_hydro_steps
-        block = np.asarray(self.data[tracer : tracer + self.rows_per_tracer])
-        t_ind = np.random.randint(1, 6)
+        hydro_step = idx // self.chem_per_hydro
+        chem_step  = idx  % self.chem_per_hydro + 1
         
-        dt = self.dt[t_ind]
+        block = np.asarray(
+            self.data[hydro_step : hydro_step + self.chem_per_hydro + 1]
+        )
+        
+        t = self.dt[chem_step]
         u = torch.tensor(block[0, :-1], dtype=torch.float32)
-        y = torch.tensor(block[t_ind, self.n_params:-1], dtype=torch.float32)
+        y = torch.tensor(block[chem_step, self.n_params:-1], dtype=torch.float32)
         
-        return u, dt, y
+        return u, t, y
     
     
     
@@ -67,19 +67,16 @@ class FiveStepRolloutDataset(Dataset):
     def __init__(
             self, 
             dataset_path,
-            metadata_path,
-            num_tracers_key
+            metadata,
+            num_tracers
         ):
-        self.dataset_path    = dataset_path
-        self.metadata_path   = metadata_path
-        self.num_tracers_key = num_tracers_key
+        self.dataset_path = dataset_path
+        self.metadata     = metadata
+        self.num_tracers  = num_tracers
         
         self.data = np.load(dataset_path, mmap_mode="r")
-        with open(metadata_path, 'r') as file:
-            self.metadata = json.load(file)
         
         self.n_params               = self.metadata['n_params']
-        self.num_tracers            = self.metadata[num_tracers_key]
         self.rows_per_tracer        = self.metadata['rows_per_tracer']
         self.hydro_steps_per_tracer = self.metadata['num_hydro_steps']
         self.hydro_steps_per_sample = 5

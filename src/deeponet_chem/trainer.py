@@ -8,12 +8,13 @@ Created on Mon Sep 28 10:09:07 2026
 
 import torch
 import optuna
+import torch.nn as nn
 
 from collections import defaultdict
 
+
 class Trainer:
-    """
-    A simple Trainer class to encapsulate the training and validation logic.
+    """A Trainer class to encapsulate DeepONet training logic.
     """
     
     def __init__(
@@ -22,8 +23,8 @@ class Trainer:
             optimizer,
             scheduler,
             train_loader, 
-            valid_loader, 
-            loss_fn, 
+            validators, 
+            primary_loss, 
             device
         ):
         """Initializes the Trainer with all necessary components.
@@ -38,8 +39,8 @@ class Trainer:
             train_loader (torch.utils.data.DataLoader): 
                 DataLoader for the training set.
                 
-            valid_loader (torch.utils.data.DataLoader): 
-                DataLoader for the validation set.
+            validators: 
+                List of validators.
                 
             loss_fn (callable): 
                 The loss function.
@@ -51,22 +52,26 @@ class Trainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.train_loader = train_loader
-        self.valid_loader = valid_loader
-        self.loss_fn = loss_fn
+        self.validators  = validators
+        self.primary_loss = primary_loss
         self.device = device
+        
+        self.model.to(self.device)
+        self.loss_fn = nn.MSELoss()
         self.best_valid_loss = float('inf')
         self.history = defaultdict(list)
-        
-        # Move the model to the specified device
-        self.model.to(self.device)
 
 
+    #=========================================================================#
+    # Training methods
+    #=========================================================================#
+    
     def train_epoch(self):
         """Performs one full training epoch.
         """
         self.model.train()
         dataset_size = len(self.train_loader)
-        running_loss = 0.0
+        total_loss = 0.0
         
         for batch_idx, batch in enumerate(self.train_loader):
             # Unpack the batch data.
@@ -80,7 +85,7 @@ class Trainer:
             
             loss.backward()
             self.optimizer.step()
-            running_loss += loss.item()
+            total_loss += loss.item()
             
             if (batch_idx % 350 == 0):
                 message = f'\r[Train batch {batch_idx}/{dataset_size}'
@@ -88,87 +93,52 @@ class Trainer:
                 print(message, end='')
             
         print('\r', end='')
-        return {'train_loss' : running_loss / len(self.train_loader)}
+        train_loss     = total_loss / len(self.train_loader)
+        train_metadata =  {'train_loss' : train_loss}
+        train_message  = f"[Train Loss: {train_loss:.6e}]"
+        return train_metadata, train_message
 
 
-    def validate_epoch(self):
-        """Performs one full validation epoch.
+    def run_epoch(self):
+        """Runs the training and validation process for a specified number of 
+        epochs.
         """
-        self.model.eval()
-        dataset_size = len(self.valid_loader)
-        loss_pred_true = 0.0
-        # rollout_loss = 0.0
+        train_metadata, train_message = self.train_epoch()
+        valid_metadata, valid_message = self.validate()
         
-        with torch.no_grad():
-            for batch_idx, example in enumerate(self.valid_loader):
-                us = example[0].to(self.device)[0]
-                ts = example[1].to(self.device)[0]
-                ys = example[2].to(self.device)[0]
-    
-                y_pred = self.model(us, ts)
-    
-                # Compute the loss for the entire vectorized batch
-                loss = self.loss_fn(y_pred, ys)
-                loss_pred_true += loss.item()
-                
-                #==========================#
-                # u = us[0:1, :]
-                # dt = ts[5:6, :]
-                # for step in range(1, 5):
-                #     y_pred = self.model(u, dt)
-                    
-                #     start = step * 5
-                #     u = torch.concat([us[start, :7], y_pred])[None, :]
-                    
-                # y_target = ys[-1, :]
-                # loss = self.loss_fn(y_pred, y_target)
-                # rollout_loss += loss.item()
-                #==========================#
-                
-                if (batch_idx % 350 == 0):
-                    message = f'\r[Valid batch {batch_idx}/{dataset_size}'
-                    message += f' loss = {loss.item():0.4e}]'
-                    print(message, end='')
-                
-            print('\r', end='')
+        if self.scheduler is not None:
+            primary_loss = valid_metadata[self.primary_loss]
+            self.scheduler.step(primary_loss)
         
-        return {
-            'valid_loss' : loss_pred_true / len(self.valid_loader),
-            'one_step_loss' : loss_pred_true / len(self.valid_loader),
-            # 'rollout_loss' : rollout_loss / len(self.valid_loader)
-        }
-
-
+        epoch_metadata = train_metadata | valid_metadata
+        message = train_message + valid_message
+        return epoch_metadata, message
+    
+    
     def run(self, num_epochs, save_path=None):
         """Runs the training and validation process for a specified number of 
         epochs.
 
         Args:
-            num_epochs (int): 
-                The number of epochs to train for.
-                
-            save_path (str, optional): 
-                Path to save the best model.
+            num_epochs (int): The number of epochs to train for.
+            save_path (str, optional): Path to save the best model.
         """
         
         for epoch in range(num_epochs):
-            epoch_metadata = {}
-            epoch_metadata |= self.train_epoch()
-            epoch_metadata |= self.validate_epoch()
+            epoch_metadata, message = self.run_epoch()
+            print(f"\r[Epoch {epoch}/{num_epochs}]" + message)
             
+            primary_loss = epoch_metadata[self.primary_loss]
             self.update_history(epoch_metadata)
-            train_loss = epoch_metadata['train_loss']
-            valid_loss = epoch_metadata['valid_loss']
-            message = f"\r[Epoch {epoch+1}/{num_epochs}]"
-            message += f"[Train Loss: {train_loss:.6e}]"
-            message += f"[Valid Loss: {valid_loss:.6e}]"
-            print(message)
             
             # Save the best model based on validation loss
-            if save_path and valid_loss < self.best_valid_loss:
-                self.best_valid_loss = valid_loss
-                self.save_checkpoint(epoch, save_path)
-                print(f"Saved model with validation loss: {valid_loss}")
+            if primary_loss < self.best_valid_loss:
+                self.best_valid_loss = primary_loss
+                if save_path is not None:
+                    self.save_checkpoint(save_path)
+                    print(f"Saved model with validation loss: {primary_loss}")
+                
+        return epoch_metadata
                 
                 
     def train_with_optuna(self, trial, epochs):
@@ -176,34 +146,53 @@ class Trainer:
         best_valid_loss = float("inf")
 
         for epoch in range(epochs):
-            self.train_epoch()
-            results = self.validate_epoch()
-            valid_loss = results['valid_loss']
-
-            # Report intermediate validation loss to Optuna
-            trial.report(valid_loss, step=epoch)
-
-            # Check if Optuna thinks this trial should be pruned early
+            epoch_metadata, epoch_message = self.run_epoch()
+            
+            primary_loss = epoch_metadata[self.primary_loss]
+            trial.report(primary_loss, step=epoch)
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
-            if valid_loss < best_valid_loss:
-                best_valid_loss = valid_loss
-                
-            if self.scheduler is not None:
-                self.scheduler.step(valid_loss)
-                
-            print(f'[Epoch: {epoch}][valid loss: {valid_loss}]')
+            if primary_loss < best_valid_loss:
+                best_valid_loss = primary_loss
+            
+            message  = f'[Epoch: {epoch}][valid loss: {primary_loss}]'
+            message += epoch_message
+            print(message)
 
         return best_valid_loss
-                
-                
+    
+    
+    #=========================================================================#
+    # Training utilities
+    #=========================================================================#
+         
+    def validate(self):
+        """Performs one full validation epoch.
+        """
+        self.model.eval()
+        
+        valid_metadata = {}
+        valid_message = ''
+        
+        for validator in self.validators:
+            metadata, message = validator.validate(self.model, self.device)
+            valid_metadata |= metadata
+            valid_message += message
+            
+        return valid_metadata, valid_message
+    
+    
     def update_history(self, epoch_metadata):
         for key, value in epoch_metadata.items():
             self.history[key].append(value)
-                
     
-    def save_checkpoint(self, epoch, path):
+    
+    #=========================================================================#
+    # Saving and loading
+    #=========================================================================#
+    
+    def save_checkpoint(self, path):
         """Saves the model and optimizer state to a file.
         """
         checkpoint_data ={
@@ -234,3 +223,52 @@ class Trainer:
                 self.scheduler.load_state_dict(
                     checkpoint['scheduler_state_dict']
                 )
+                
+    
+#============================================================================   
+    # def validate_epoch(self):
+    #     """Performs one full validation epoch.
+    #     """
+    #     self.model.eval()
+    #     dataset_size = len(self.valid_loader)
+    #     loss_pred_true = 0.0
+    #     # rollout_loss = 0.0
+        
+    #     with torch.no_grad():
+    #         for batch_idx, example in enumerate(self.valid_loader):
+    #             us = example[0].to(self.device)[0]
+    #             ts = example[1].to(self.device)[0]
+    #             ys = example[2].to(self.device)[0]
+    
+    #             y_pred = self.model(us, ts)
+    
+    #             # Compute the loss for the entire vectorized batch
+    #             loss = self.loss_fn(y_pred, ys)
+    #             loss_pred_true += loss.item()
+                
+    #             #==========================#
+    #             # u = us[0:1, :]
+    #             # dt = ts[5:6, :]
+    #             # for step in range(1, 5):
+    #             #     y_pred = self.model(u, dt)
+                    
+    #             #     start = step * 5
+    #             #     u = torch.concat([us[start, :7], y_pred])[None, :]
+                    
+    #             # y_target = ys[-1, :]
+    #             # loss = self.loss_fn(y_pred, y_target)
+    #             # rollout_loss += loss.item()
+    #             #==========================#
+                
+    #             if (batch_idx % 350 == 0):
+    #                 message = f'\r[Valid batch {batch_idx}/{dataset_size}'
+    #                 message += f' loss = {loss.item():0.4e}]'
+    #                 print(message, end='')
+                
+    #         print('\r', end='')
+        
+    #     return {
+    #         'valid_loss' : loss_pred_true / len(self.valid_loader),
+    #         'one_step_loss' : loss_pred_true / len(self.valid_loader),
+    #         # 'rollout_loss' : rollout_loss / len(self.valid_loader)
+    #     }

@@ -6,49 +6,57 @@ Created on Wed Oct  7 15:31:42 2026
 @author: jbrennan
 """
 
+import json
 from pathlib import Path
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .trainer import Trainer
-from .dataset import OneStepTracerDataset, FiveStepRolloutDataset
+from .validators import VALIDATORS
+from .dataset import OneStepTracerDataset
 from .deep_o_net import DeepONet
 
 
-def setup_data_loaders(paths, train_cfg):
+def setup_train_loader(paths, train_cfg):
     """
     """
     data_dir = Path(paths.get("data_dir", "."))
     metadata_path = data_dir / paths["metadata_file"]
+    with open(metadata_path, 'r') as file:
+        metadata = json.load(file)
 
     train_dataset = OneStepTracerDataset(
         data_dir / paths["train_data"],
-        metadata_path,
-        "num_train_tracers",
+        metadata,
+        metadata["num_train_tracers"],
     )
     train_loader = DataLoader(
         train_dataset,
         batch_size  = train_cfg["batch_size"],
         shuffle     = train_cfg.get("shuffle_train", True),
     )
+    return train_loader
 
-    valid_dataset = FiveStepRolloutDataset(
-        data_dir / paths["valid_data"],
-        metadata_path,
-        "num_valid_tracers",
-    )
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size  = 1,
-        shuffle     = False,
-    )
+
+def setup_validators(paths, train_cfg):
+    validators = []
     
-    return train_loader, valid_loader
+    data_dir = Path(paths.get("data_dir", "."))
+    valid_data = data_dir / paths["train_data"]
+    metadata_path = data_dir / paths["metadata_file"]
+    with open(metadata_path, 'r') as file:
+        metadata = json.load(file)
+    
+    for name in train_cfg['validators']:
+        validators.append(
+            VALIDATORS[name](valid_data, metadata)
+        )
+    
+    return validators
 
 
 def setup_model_and_optimizer(model_cfg, train_cfg, device):
@@ -84,7 +92,8 @@ def start_training_run(paths, model_cfg, train_cfg):
     )
     print(f"Using device: {device}")
 
-    train_loader, valid_loader = setup_data_loaders(paths, train_cfg)
+    train_loader = setup_train_loader(paths, train_cfg)
+    validators = setup_validators(paths, train_cfg)
     
     model, optimizer, scheduler = setup_model_and_optimizer(
         model_cfg, train_cfg, device
@@ -96,8 +105,8 @@ def start_training_run(paths, model_cfg, train_cfg):
         optimizer    = optimizer,
         scheduler    = scheduler,
         train_loader = train_loader,
-        valid_loader = valid_loader,
-        loss_fn      = nn.MSELoss(),
+        validators   = validators,
+        primary_loss = train_cfg['primary_loss'],
         device       = device,
     )
 
