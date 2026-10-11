@@ -8,14 +8,15 @@ model_checkpoint = "best_model.pth"
 [model]
 output_size   = 14
 input_size    = 21
-latent_size   = 35
-branch_size   = 70 
-branch_layers = 4
-trunk_size    = 70 
-trunk_layers  = 4
+latent_size   = 64
+branch_size   = 256 
+branch_layers = 3
+trunk_size    = 64 
+trunk_layers  = 2
+activation    = 'tanh'
 
 [training]
-learning_rate = 1e-6
-weight_decay  = 0.0
+learning_rate = 3.5e-5
+weight_decay  = 1.12e-6
 batch_size    = 64
-num_epochs    = 210
+num_epochs    = 350

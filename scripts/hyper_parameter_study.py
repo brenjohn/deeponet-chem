@@ -14,6 +14,8 @@ import torch
 import optuna
 import torch.nn as nn
 
+torch.set_flush_denormal(True)
+
 from deeponet_chem.trainer import Trainer
 from deeponet_chem.train_setup import setup_data_loaders
 from deeponet_chem.train_setup import setup_model_and_optimizer
@@ -67,12 +69,15 @@ def create_objective(config: dict, device):
         }
         
         train_loader, valid_loader = setup_data_loaders(paths, train_cfg)
-        model, optimizer = setup_model_and_optimizer(model_cfg, train_cfg, device)
+        model, optimizer, scheduler = setup_model_and_optimizer(
+            model_cfg, train_cfg, device
+        )
 
         # Initialize Trainer and Run
         trainer = Trainer(
             model        = model,
             optimizer    = optimizer,
+            scheduler    = scheduler,
             train_loader = train_loader,
             valid_loader = valid_loader,
             loss_fn      = nn.MSELoss(),
@@ -80,7 +85,7 @@ def create_objective(config: dict, device):
         )
 
         # Pass trial to trainer so it can report epoch losses & prune early
-        val_loss = trainer.train_with_optuna(trial)
+        val_loss = trainer.train_with_optuna(trial, train_base['num_epochs'])
         return val_loss
 
     return objective

@@ -6,7 +6,6 @@ Created on Mon Sep 28 10:09:07 2026
 @author: jbrennan
 """
 
-import os
 import torch
 import optuna
 
@@ -20,7 +19,8 @@ class Trainer:
     def __init__(
             self, 
             model, 
-            optimizer, 
+            optimizer,
+            scheduler,
             train_loader, 
             valid_loader, 
             loss_fn, 
@@ -49,6 +49,7 @@ class Trainer:
         """
         self.model = model
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.train_loader = train_loader
         self.valid_loader = valid_loader
         self.loss_fn = loss_fn
@@ -77,17 +78,13 @@ class Trainer:
             y_pred = self.model(u, t)
             loss = self.loss_fn(y_pred, y_true)
             
-            # u2 = self.model(u, t/2)
-            # y_pred_half = self.model(u2, t/2)
-            # loss += self.loss_fn(y_pred_half, y_true)
-            
             loss.backward()
             self.optimizer.step()
             running_loss += loss.item()
             
-            if (batch_idx % 140 == 0):
-                message = f'\rBatch {batch_idx}/{dataset_size}'
-                message += f' loss = {loss.item()}'
+            if (batch_idx % 350 == 0):
+                message = f'\r[Train batch {batch_idx}/{dataset_size}'
+                message += f' loss = {loss.item():0.4e}]'
                 print(message, end='')
             
         print('\r', end='')
@@ -100,52 +97,45 @@ class Trainer:
         self.model.eval()
         dataset_size = len(self.valid_loader)
         loss_pred_true = 0.0
-        # loss_iter_true = 0.0
-        # loss_pred_iter = 0.0
+        # rollout_loss = 0.0
         
         with torch.no_grad():
             for batch_idx, example in enumerate(self.valid_loader):
-                us, ts, ys = [item.to(self.device) for item in example]
-                
-                # num_time_points = ts.shape[1]
-                
-                # u_repeated = u.unsqueeze(1)
-                # u_repeated = u.repeat(1, num_time_points, 1)
-                # u_repeated = u.reshape(-1, u.shape[-1])
-                
-                # ts_reshaped = ts.reshape(-1, 1)
-                # ys_reshaped = ys.reshape(-1, ys.shape[-1])
+                us = example[0].to(self.device)[0]
+                ts = example[1].to(self.device)[0]
+                ys = example[2].to(self.device)[0]
     
                 y_pred = self.model(us, ts)
-                
-                # y_iter = self.model(u_repeated, ts_reshaped/2)
-                # y_iter = self.model(y_iter, ts_reshaped/2)
     
                 # Compute the loss for the entire vectorized batch
                 loss = self.loss_fn(y_pred, ys)
                 loss_pred_true += loss.item()
                 
-                # loss = self.loss_fn(y_iter, ys_reshaped.T)
-                # loss_iter_true += loss.item()
+                #==========================#
+                # u = us[0:1, :]
+                # dt = ts[5:6, :]
+                # for step in range(1, 5):
+                #     y_pred = self.model(u, dt)
+                    
+                #     start = step * 5
+                #     u = torch.concat([us[start, :7], y_pred])[None, :]
+                    
+                # y_target = ys[-1, :]
+                # loss = self.loss_fn(y_pred, y_target)
+                # rollout_loss += loss.item()
+                #==========================#
                 
-                # loss = self.loss_fn(y_pred, y_iter)
-                # loss_pred_iter += loss.item()
-                
-                if (batch_idx % 140 == 0):
-                    message = f'\rBatch {batch_idx}/{dataset_size}'
-                    message += f' loss = {loss.item()}'
+                if (batch_idx % 350 == 0):
+                    message = f'\r[Valid batch {batch_idx}/{dataset_size}'
+                    message += f' loss = {loss.item():0.4e}]'
                     print(message, end='')
                 
             print('\r', end='')
         
         return {
             'valid_loss' : loss_pred_true / len(self.valid_loader),
-            'loss_pred_true' : loss_pred_true / len(self.valid_loader),
-            # 'loss_iter_true' : loss_iter_true / len(self.valid_loader),
-            # 'loss_pred_iter' : loss_pred_iter / len(self.valid_loader),
-            # 'pred_sample' : y_pred.cpu().numpy(),
-            # 'iter_sample' : y_iter.cpu().numpy(),
-            # 'u_sample' : u.cpu().numpy()
+            'one_step_loss' : loss_pred_true / len(self.valid_loader),
+            # 'rollout_loss' : rollout_loss / len(self.valid_loader)
         }
 
 
@@ -170,8 +160,8 @@ class Trainer:
             train_loss = epoch_metadata['train_loss']
             valid_loss = epoch_metadata['valid_loss']
             message = f"\r[Epoch {epoch+1}/{num_epochs}]"
-            message += f"[Train Loss: {train_loss:.6f}]"
-            message += f"[Valid Loss: {valid_loss:.6f}]"
+            message += f"[Train Loss: {train_loss:.6e}]"
+            message += f"[Valid Loss: {valid_loss:.6e}]"
             print(message)
             
             # Save the best model based on validation loss
@@ -181,7 +171,7 @@ class Trainer:
                 print(f"Saved model with validation loss: {valid_loss}")
                 
                 
-    def train_with_optuna(self, trial, epochs = 50):
+    def train_with_optuna(self, trial, epochs):
         """Trains the model while reporting losses to Optuna for pruning."""
         best_valid_loss = float("inf")
 
@@ -199,6 +189,11 @@ class Trainer:
 
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
+                
+            if self.scheduler is not None:
+                self.scheduler.step(valid_loss)
+                
+            print(f'[Epoch: {epoch}][valid loss: {valid_loss}]')
 
         return best_valid_loss
                 
@@ -209,26 +204,33 @@ class Trainer:
                 
     
     def save_checkpoint(self, epoch, path):
+        """Saves the model and optimizer state to a file.
         """
-        Saves the model and optimizer state to a file.
-        """
-        torch.save({
+        checkpoint_data ={
             'history': self.history,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-        }, path)
+        }
+        
+        if self.scheduler is not None:
+            checkpoint_data['scheduler_state_dict'] = self.scheduler.state_dict()
+            
+        torch.save(checkpoint_data, path)
 
 
     def load_checkpoint(self, path):
+        """Loads the trainer state from a checkpoint file.
         """
-        Loads the model and optimizer state from a checkpoint file.
-        """
-        if os.path.isfile(path):
-            checkpoint = torch.load(path, map_location=self.device)
-            self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.history = checkpoint['history']
-            return True
-        else:
-            print(f"No checkpoint found at '{path}'.")
-            return False
+        checkpoint = torch.load(
+            path, map_location=self.device, weights_only=False
+        )
+        
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.history = checkpoint['history']
+        
+        if getattr(self, 'scheduler', None) is not None:
+            if 'scheduler_state_dict' in checkpoint:
+                self.scheduler.load_state_dict(
+                    checkpoint['scheduler_state_dict']
+                )
