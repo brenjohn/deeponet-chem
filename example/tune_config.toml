@@ -15,7 +15,9 @@ output_size = 14
 input_size  = 21
 
 [training]
-num_epochs = 21
+num_epochs = 2
+validators    = ['OneStep']
+primary_loss  = 'one_step_loss'
 
 [search_space]
 activation    = { type = "categorical", choices = ["tanh", "gelu", "silu"] }

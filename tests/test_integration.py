@@ -68,7 +68,7 @@ class TestTrainingIntegration(unittest.TestCase):
             "weight_decay":  1e-4,
             "num_epochs":    2,
             "shuffle_train": True,
-            "validators":    ['OneStep'],
+            "validators":    ['OneStep', 'Rollout'],
             "primary_loss":  'one_step_loss'
         }
     

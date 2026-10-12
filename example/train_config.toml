@@ -20,5 +20,5 @@ learning_rate = 3.5e-5
 weight_decay  = 1.12e-6
 batch_size    = 64
 num_epochs    = 350
-validators    = ['OneStep']
+validators    = ['OneStep', 'Rollout']
 primary_loss  = 'one_step_loss'

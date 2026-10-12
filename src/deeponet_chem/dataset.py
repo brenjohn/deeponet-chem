@@ -9,6 +9,7 @@ Created on Mon Sep 28 10:14:45 2026
 import torch
 import numpy as np
 
+from torch import tensor
 from torch.utils.data import Dataset
 
 
@@ -36,7 +37,7 @@ class OneStepTracerDataset(Dataset):
         dt_max = self.metadata['bounds']['dt_max']
         self.time_step = dt_min / dt_max
         self.dt = [
-            torch.tensor([i * self.time_step], dtype=torch.float32)
+            tensor([i * self.time_step], dtype=torch.float32)
             for i in range(6)
         ]
 
@@ -54,8 +55,8 @@ class OneStepTracerDataset(Dataset):
         )
         
         t = self.dt[chem_step]
-        u = torch.tensor(block[0, :-1], dtype=torch.float32)
-        y = torch.tensor(block[chem_step, self.n_params:-1], dtype=torch.float32)
+        u = tensor(block[0, :-1], dtype=torch.float32)
+        y = tensor(block[chem_step, self.n_params:-1], dtype=torch.float32)
         
         return u, t, y
     
@@ -78,6 +79,7 @@ class FiveStepRolloutDataset(Dataset):
         
         self.n_params               = self.metadata['n_params']
         self.rows_per_tracer        = self.metadata['rows_per_tracer']
+        self.chem_per_hydro         = self.metadata['chem_per_hydro']
         self.hydro_steps_per_tracer = self.metadata['num_hydro_steps']
         self.hydro_steps_per_sample = 5
         
@@ -85,7 +87,7 @@ class FiveStepRolloutDataset(Dataset):
         dt_max = self.metadata['bounds']['dt_max']
         self.time_step = dt_min / dt_max
         self.dt = [
-            torch.tensor([i * self.time_step], dtype=torch.float32)
+            tensor([i * self.time_step], dtype=torch.float32)
             for i in range(6)
         ]
         
@@ -99,26 +101,35 @@ class FiveStepRolloutDataset(Dataset):
 
     def __len__(self):
         return self.num_samples
-
-
+    
+    
     def __getitem__(self, sample_ind):
-        # Get the tracer block
-        start  = self.rows_per_sample * sample_ind
+        start = self.rows_per_sample * sample_ind
         block = np.asarray(self.data[start : start + self.rows_per_sample + 1])
         
-        # Get the target states
-        y = torch.tensor(block[1:, self.n_params:-1], dtype=torch.float32)
+        u_init = tensor(block[0, :-1], dtype=torch.float32)
+        t_step = self.dt[-1]
         
-        # Get the initial states
-        chem_per_hydro = self.metadata['chem_per_hydro']
-        u = torch.tensor(block[:-1:chem_per_hydro, :-1], dtype=torch.float32)
-        u = u.repeat_interleave(chem_per_hydro, 0)
+        params_seq = []
+        target_seq = []
         
-        # Get the time steps
-        dt = torch.stack(self.dt[1:])
-        dt = dt.repeat(chem_per_hydro, 1)
+        for step in range(self.hydro_steps_per_sample):
+            
+            ind = (step + 1) * self.chem_per_hydro
+            p_step = tensor(block[ind, :self.n_params], dtype=torch.float32)
+            y_step = tensor(block[ind, self.n_params:-1], dtype=torch.float32)
+            
+            params_seq.append(p_step)
+            target_seq.append(y_step)
+            
+        # Stack into tensors: shape becomes [num_steps, feature_dim]
+        params_tensor = torch.stack(params_seq)
+        target_tensor = torch.stack(target_seq)
         
-        return u, dt, y
+        initial_state = (u_init, t_step)
+        rollout_sequence = (params_tensor, target_tensor)
+        
+        return initial_state, rollout_sequence
 
 
 

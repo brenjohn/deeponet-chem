@@ -17,7 +17,8 @@ import torch.nn as nn
 torch.set_flush_denormal(True)
 
 from deeponet_chem.trainer import Trainer
-from deeponet_chem.train_setup import setup_data_loaders
+from deeponet_chem.train_setup import setup_train_loader
+from deeponet_chem.train_setup import setup_validators
 from deeponet_chem.train_setup import setup_model_and_optimizer
 
 
@@ -44,6 +45,7 @@ def sample_param(trial: optuna.Trial, param_name: str, config: dict):
 
 
 
+# TODO: Reduce code duplication with train_setup.start_training_run
 def create_objective(config: dict, device):
     
     paths = config['paths']
@@ -68,7 +70,8 @@ def create_objective(config: dict, device):
             'activation'    : sample_param(trial, "activation",    search_cfg),
         }
         
-        train_loader, valid_loader = setup_data_loaders(paths, train_cfg)
+        train_loader = setup_train_loader(paths, train_cfg)
+        validators = setup_validators(paths, train_cfg)
         model, optimizer, scheduler = setup_model_and_optimizer(
             model_cfg, train_cfg, device
         )
@@ -79,8 +82,8 @@ def create_objective(config: dict, device):
             optimizer    = optimizer,
             scheduler    = scheduler,
             train_loader = train_loader,
-            valid_loader = valid_loader,
-            loss_fn      = nn.MSELoss(),
+            validators   = validators,
+            primary_loss = train_cfg['primary_loss'],
             device       = device,
         )
 
