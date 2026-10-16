@@ -1,9 +1,9 @@
 [paths]
-data_dir         = "./data/"
-metadata_file    = "metadata.json"
-train_data       = "train_dataset.npy"
-valid_data       = "valid_dataset.npy"
-model_checkpoint = "best_model.pth"
+data_dir      = "./data/"
+metadata_file = "metadata.json"
+train_data    = "train_dataset.npy"
+valid_data    = "valid_dataset.npy"
+checkpoints   = "best_model.pth"
 
 [model]
 output_size   = 14

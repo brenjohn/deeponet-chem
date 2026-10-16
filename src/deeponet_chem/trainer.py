@@ -6,6 +6,7 @@ Created on Mon Sep 28 10:09:07 2026
 @author: jbrennan
 """
 
+import json
 import torch
 import optuna
 import torch.nn as nn
@@ -30,31 +31,20 @@ class Trainer:
         """Initializes the Trainer with all necessary components.
 
         Args:
-            model (torch.nn.Module): 
-                The PyTorch model to train.
-                
-            optimizer (torch.optim.Optimizer): 
-                The optimizer for updating model weights.
-                
-            train_loader (torch.utils.data.DataLoader): 
-                DataLoader for the training set.
-                
-            validators: 
-                List of validators.
-                
-            loss_fn (callable): 
-                The loss function.
-                
-            device (torch.device): 
-                The device (e.g., 'cpu' or 'cuda') to run training on.
+            model        : The PyTorch model to train.
+            optimizer    : The optimizer for updating model weights.
+            train_loader : DataLoader for the training set.
+            validators   : List of validators.
+            primary_loss : Which loss to prioritize when saving checkpoints.
+            device       : The device to run training on.
         """
-        self.model = model
-        self.optimizer = optimizer
-        self.scheduler = scheduler
+        self.model        = model
+        self.optimizer    = optimizer
+        self.scheduler    = scheduler
         self.train_loader = train_loader
-        self.validators  = validators
+        self.validators   = validators
         self.primary_loss = primary_loss
-        self.device = device
+        self.device       = device
         
         self.model.to(self.device)
         self.loss_fn = nn.MSELoss()
@@ -135,7 +125,9 @@ class Trainer:
             if primary_loss < self.best_valid_loss:
                 self.best_valid_loss = primary_loss
                 if save_path is not None:
-                    self.save_checkpoint(save_path)
+                    checkpoint = save_path / f'best_model_{primary_loss:0.4e}'
+                    checkpoint.mkdir(parents=True, exist_ok=True)
+                    self.save_checkpoint(checkpoint)
                     print(f"Saved model with validation loss: {primary_loss}")
                 
         return epoch_metadata
@@ -189,37 +181,21 @@ class Trainer:
     
     
     #=========================================================================#
-    # Saving and loading
+    # Saving checkpoints
     #=========================================================================#
     
-    def save_checkpoint(self, path):
+    def save_checkpoint(self, checkpoint_path):
         """Saves the model and optimizer state to a file.
         """
-        checkpoint_data ={
-            'history': self.history,
-            'model_state_dict': self.model.state_dict(),
+        checkpoint_path.mkdir(parents=True, exist_ok=True)
+        
+        self.model.save(checkpoint_path / 'model.pt')
+        
+        checkpoint_data = {
+            'scheduler_state_dict': self.scheduler.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
         }
+        torch.save(checkpoint_data, checkpoint_path / 'optimizer.pt')
         
-        if self.scheduler is not None:
-            checkpoint_data['scheduler_state_dict'] = self.scheduler.state_dict()
-            
-        torch.save(checkpoint_data, path)
-
-
-    def load_checkpoint(self, path):
-        """Loads the trainer state from a checkpoint file.
-        """
-        checkpoint = torch.load(
-            path, map_location=self.device, weights_only=False
-        )
-        
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.history = checkpoint['history']
-        
-        if getattr(self, 'scheduler', None) is not None:
-            if 'scheduler_state_dict' in checkpoint:
-                self.scheduler.load_state_dict(
-                    checkpoint['scheduler_state_dict']
-                )
+        with open(checkpoint_path / 'history.json', 'w') as file:
+            json.dump(self.history, file, indent=4)

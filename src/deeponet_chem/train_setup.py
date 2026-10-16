@@ -36,8 +36,8 @@ def setup_train_loader(paths, train_cfg):
     )
     train_loader = DataLoader(
         train_dataset,
-        batch_size  = train_cfg["batch_size"],
-        shuffle     = train_cfg.get("shuffle_train", True),
+        batch_size = train_cfg["batch_size"],
+        shuffle    = train_cfg.get("shuffle_train", True),
     )
     return train_loader
 
@@ -59,26 +59,40 @@ def setup_validators(paths, train_cfg):
     return validators
 
 
-def setup_model_and_optimizer(model_cfg, train_cfg, device):
+def setup_optimizer(model, train_cfg, device):
     """
     """
-    model = DeepONet(**model_cfg).to(device)
-
-    optimizer = optim.Adam(
+    optimizer = optim.AdamW(
         model.parameters(),
         lr           = train_cfg["learning_rate"],
         weight_decay = train_cfg.get("weight_decay", 0.0),
     )
-    
     scheduler = ReduceLROnPlateau(
         optimizer, 
-        mode='min', 
-        factor=0.5, 
-        patience=5, 
-        min_lr=1e-8
+        mode     = 'min', 
+        factor   = 0.5, 
+        patience = 5, 
+        min_lr   = 1e-8
     )
-    
-    return model, optimizer, scheduler
+    if 'optimizer_checkpoint' in train_cfg:
+        optimizer_checkpoint = train_cfg['optimizer_checkpoint']
+        print('Loading', optimizer_checkpoint)
+        checkpoint = torch.load(optimizer_checkpoint, weights_only=False)
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    return optimizer, scheduler
+
+
+def setup_model(model_cfg, train_cfg, device):
+    """
+    """
+    if 'model_checkpoint' in train_cfg:
+        checkpoint = train_cfg['model_checkpoint']
+        print('Loading', checkpoint)
+        model = DeepONet.load(checkpoint, device)
+    else:
+        model = DeepONet(**model_cfg).to(device)
+    return model
 
 
 def start_training_run(paths, model_cfg, train_cfg):
@@ -92,12 +106,10 @@ def start_training_run(paths, model_cfg, train_cfg):
     )
     print(f"Using device: {device}")
 
-    train_loader = setup_train_loader(paths, train_cfg)
-    validators = setup_validators(paths, train_cfg)
-    
-    model, optimizer, scheduler = setup_model_and_optimizer(
-        model_cfg, train_cfg, device
-    )
+    model                = setup_model(model_cfg, train_cfg, device)
+    train_loader         = setup_train_loader(paths, train_cfg)
+    validators           = setup_validators(paths, train_cfg)
+    optimizer, scheduler = setup_optimizer(model, train_cfg, device)
 
     # Initialize Trainer and Run
     trainer = Trainer(
@@ -111,9 +123,9 @@ def start_training_run(paths, model_cfg, train_cfg):
     )
 
     out_dir = Path(paths.get("output_dir", "."))
-    save_path = out_dir / paths.get("model_checkpoint", "best_model.pth")
+    save_path = out_dir / paths.get("checkpoints", "./checkpoints")
     print(f"Starting training for {train_cfg['num_epochs']} epochs...")
     trainer.run(
         num_epochs = train_cfg["num_epochs"], 
-        save_path  = str(save_path)
+        save_path  = Path(save_path)
     )

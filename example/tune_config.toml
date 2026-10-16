@@ -2,7 +2,7 @@
 study_name = "deeponet_chem_hpo"
 direction  = "minimize"
 n_trials   = 56
-storage    = "sqlite:///optuna_study.db"
+storage    = "./optuna_journal.log"
 
 [paths]
 data_dir      = "./data/"
@@ -22,7 +22,7 @@ primary_loss  = 'one_step_loss'
 [search_space]
 activation    = { type = "categorical", choices = ["tanh", "gelu", "silu"] }
 latent_size   = { type = "categorical", choices = [32, 64, 128] }
-branch_size   = { type = "categorical", choices = [32, 64, 128, 256] }
+branch_size   = { type = "categorical", choices = [32, 64, 128] }
 trunk_size    = { type = "categorical", choices = [32, 64, 128] }
 branch_layers = { type = "int", low = 2, high = 4 }
 trunk_layers  = { type = "int", low = 2, high = 4 }

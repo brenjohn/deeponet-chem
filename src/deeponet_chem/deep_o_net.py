@@ -39,12 +39,23 @@ class DeepONet(nn.Module):
             branch_layers (int): The number of hidden layers in branch network.
             trunk_size (int): Number of neurons in the trunk network layers.
             trunk_layers (int): The number of hidden layers in trunk network.
+            activation (str): The name of the activation function to use.
         """
         super(DeepONet, self).__init__()
         
         self.output_size = output_size
         self.latent_size = latent_size
-        self.input_size = input_size
+        
+        self.config = {
+            'output_size'   : output_size,
+            'latent_size'   : latent_size,
+            'input_size'    : input_size, 
+            'branch_size'   : branch_size, 
+            'branch_layers' : branch_layers,
+            'trunk_size'    : trunk_size, 
+            'trunk_layers'  : trunk_layers,
+            'activation'    : activation
+        }
 
         # Define the Branch Network
         self.branch_net = self._build_network(
@@ -115,3 +126,24 @@ class DeepONet(nn.Module):
         # output = torch.einsum('bol,bl->bo', branch_output, trunk_output)
         
         return output
+    
+    
+    def save(self, path):
+        """Saves the model architecture configuration and weights."""
+        checkpoint = {
+            'config': self.config,
+            'state_dict': self.state_dict()
+        }
+        torch.save(checkpoint, path)
+
+
+    @classmethod
+    def load(cls, path, map_location=None):
+        """Class method to load a DeepONet instance from file."""
+        checkpoint = torch.load(
+            path, map_location=map_location, weights_only=False
+        )
+        model = cls(**checkpoint['config'])
+        model.load_state_dict(checkpoint['state_dict'])
+        return model
+        

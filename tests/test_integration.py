@@ -48,7 +48,7 @@ class TestTrainingIntegration(unittest.TestCase):
             "metadata_file": "metadata.json",
             "train_data": "train_dataset.npy",
             "valid_data": "valid_dataset.npy",
-            "model_checkpoint": str(self.test_output_dir / 'best_model.pt')
+            "checkpoints": str(self.test_output_dir / 'checkpoints')
         }
         
         self.model_cfg = {
@@ -94,11 +94,34 @@ class TestTrainingIntegration(unittest.TestCase):
         start_training_run(self.paths, self.model_cfg, self.train_cfg)
         
         # Assertions to verify correct execution and checkpoint creation
-        checkpoint_path = self.test_output_dir / "best_model.pt"
+        checkpoint_path = self.test_output_dir / "checkpoints"
         self.assertTrue(
             checkpoint_path.exists(),
-            "Checkpoint file was not created."
+            "Checkpoints root directory was not created."
         )
+        
+        checkpoint_dirs = list(checkpoint_path.glob('best_model_*'))
+        self.assertTrue(
+            len(checkpoint_dirs) > 0,
+            "No checkpoint subdirectories found."
+        )
+        
+        # Test restarting from a checkpoint.
+        restart_checkpoint_path = self.test_output_dir / "restart_checkpoint"
+        checkpoint_path = checkpoint_dirs[0]
+        train_cfg = self.train_cfg | {
+            'model_checkpoint'     : checkpoint_path / 'model.pt',
+            'optimizer_checkpoint' : checkpoint_path / 'optimizer.pt'
+        }
+        paths = self.paths | {'checkpoints' : restart_checkpoint_path}
+        start_training_run(paths, self.model_cfg, train_cfg)
+        
+        # Assert correct execution and checkpoint creation
+        self.assertTrue(
+            restart_checkpoint_path.exists(),
+            "Restart checkpoint path was not created."
+        )
+        
 
 
 if __name__ == "__main__":

@@ -12,7 +12,6 @@ from pathlib import Path
 
 import torch
 import optuna
-import torch.nn as nn
 
 torch.set_flush_denormal(True)
 
@@ -104,13 +103,33 @@ def main(config):
     
     optuna_cfg = config["optuna"]
     
+    storage = optuna.storages.JournalStorage(
+        optuna.storages.journal.JournalFileBackend(
+            optuna_cfg.get("storage", "./optuna_journal.log")
+        ),
+    )
+    
     study = optuna.create_study(
         study_name = optuna_cfg.get("study_name", "deeponet_hpo"),
         direction  = optuna_cfg.get("direction", "minimize"),
-        storage    = optuna_cfg.get("storage", None),
+        storage    = storage,
         pruner     = optuna.pruners.MedianPruner(),
-        load_if_exists=True,
+        load_if_exists = True,
     )
+    
+    # try:
+    #     study = optuna.create_study(
+    #         study_name = optuna_cfg.get("study_name", "deeponet_hpo"),
+    #         direction  = optuna_cfg.get("direction", "minimize"),
+    #         storage    = storage,
+    #         pruner     = optuna.pruners.MedianPruner(),
+    #         load_if_exists = True,
+    #     )
+    # except Exception:
+    #     study = optuna.load_study(
+    #         study_name = optuna_cfg.get("study_name", "deeponet_hpo"),
+    #         storage    = storage,
+    #     )
 
     study.optimize(
         create_objective(config, device), 
@@ -132,7 +151,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("examples/tune.toml"),
+        default=Path("./tune_config.toml"),
         help="Path to tuning TOML configuration file",
     )
     args = parser.parse_args()
