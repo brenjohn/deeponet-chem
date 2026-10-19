@@ -18,7 +18,8 @@ torch.set_flush_denormal(True)
 from deeponet_chem.trainer import Trainer
 from deeponet_chem.train_setup import setup_train_loader
 from deeponet_chem.train_setup import setup_validators
-from deeponet_chem.train_setup import setup_model_and_optimizer
+from deeponet_chem.train_setup import setup_model
+from deeponet_chem.train_setup import setup_optimizer
 
 
 def sample_param(trial: optuna.Trial, param_name: str, config: dict):
@@ -69,11 +70,16 @@ def create_objective(config: dict, device):
             'activation'    : sample_param(trial, "activation",    search_cfg),
         }
         
-        train_loader = setup_train_loader(paths, train_cfg)
-        validators = setup_validators(paths, train_cfg)
-        model, optimizer, scheduler = setup_model_and_optimizer(
-            model_cfg, train_cfg, device
-        )
+        # train_loader = setup_train_loader(paths, train_cfg)
+        # validators = setup_validators(paths, train_cfg)
+        # model, optimizer, scheduler = setup_model_and_optimizer(
+        #     model_cfg, train_cfg, device
+        # )
+        
+        model                = setup_model(model_cfg, train_cfg, device)
+        train_loader         = setup_train_loader(paths, train_cfg)
+        validators           = setup_validators(paths, train_cfg)
+        optimizer, scheduler = setup_optimizer(model, train_cfg, device)
 
         # Initialize Trainer and Run
         trainer = Trainer(
