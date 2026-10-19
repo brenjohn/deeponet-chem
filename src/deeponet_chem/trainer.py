@@ -63,15 +63,29 @@ class Trainer:
         dataset_size = len(self.train_loader)
         total_loss = 0.0
         
-        for batch_idx, batch in enumerate(self.train_loader):
+        for batch_idx, (one_batch, five_batch) in enumerate(self.train_loader):
             # Unpack the batch data.
-            u, t, y_true = [item.to(self.device) for item in batch]
+            u, t, y_true = [item.to(self.device) for item in one_batch]
 
             # Compute loss and update model
             self.optimizer.zero_grad()
             
+            # One step loss
             y_pred = self.model(u, t)
             loss = self.loss_fn(y_pred, y_true)
+            
+            # Five step loss
+            initial_state, rollout_sequence = five_batch
+            u = initial_state[0].to(self.device)
+            t = initial_state[1].to(self.device)
+            params_tensor, target_tensor = rollout_sequence
+            num_steps = params_tensor.shape[1]
+            for step in range(num_steps):
+                p = params_tensor[:, step, :].to(self.device)
+                y = target_tensor[:, step, :].to(self.device)
+                y_pred = self.model(u, t)
+                u = torch.concat([p, y_pred.detach()], dim=1)
+                loss += self.loss_fn(y_pred, y) / num_steps
             
             loss.backward()
             self.optimizer.step()

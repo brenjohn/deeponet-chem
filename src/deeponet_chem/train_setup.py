@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .trainer import Trainer
 from .validators import VALIDATORS
-from .dataset import OneStepTracerDataset
+from .dataset import OneStepTracerDataset, FiveStepRolloutDataset, ZipDataset
 from .deep_o_net import DeepONet
 
 
@@ -29,10 +29,19 @@ def setup_train_loader(paths, train_cfg):
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
 
-    train_dataset = OneStepTracerDataset(
+    onestep_dataset = OneStepTracerDataset(
         data_dir / paths["train_data"],
         metadata,
         metadata["num_train_tracers"],
+    )
+    fivestep_dataset = FiveStepRolloutDataset(
+        data_dir / paths["train_data"],
+        metadata,
+        metadata["num_train_tracers"],
+    )
+    train_dataset = ZipDataset(
+        onestep_dataset,
+        fivestep_dataset,
     )
     train_loader = DataLoader(
         train_dataset,

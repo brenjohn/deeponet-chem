@@ -8,12 +8,12 @@ checkpoints   = "best_model.pth"
 [model]
 output_size   = 14
 input_size    = 21
-latent_size   = 64
+latent_size   = 128
 branch_size   = 256 
 branch_layers = 3
-trunk_size    = 64 
+trunk_size    = 128 
 trunk_layers  = 2
-activation    = 'tanh'
+activation    = 'silu'
 
 [training]
 learning_rate = 3.5e-5

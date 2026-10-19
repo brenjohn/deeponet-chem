@@ -13,6 +13,23 @@ from torch import tensor
 from torch.utils.data import Dataset
 
 
+class ZipDataset(Dataset):
+    """
+    """
+    def __init__(self, *datasets):
+        self.datasets = datasets
+        
+        lengths = [len(d) for d in datasets]
+        self.length = min(lengths)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        return tuple(dataset[idx] for dataset in self.datasets)
+
+
+
 class OneStepTracerDataset(Dataset):
     """
     """
