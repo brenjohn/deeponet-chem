@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from .dataset import OneStepTracerDataset, FiveStepRolloutDataset
+from .dataset import OneStepTracerDataset, FullRolloutDataset
 
 
 class OneStepValidator:
@@ -72,7 +72,7 @@ class RolloutValidator:
         
         self.loss_fn = nn.MSELoss()
 
-        valid_dataset = FiveStepRolloutDataset(
+        valid_dataset = FullRolloutDataset(
             valid_data_path,
             metadata,
             metadata["num_valid_tracers"],
@@ -88,7 +88,6 @@ class RolloutValidator:
         """
         """
         num_batches = len(self.data_loader)
-        rollout_loss = 0.0
         average_loss = 0.0
         
         with torch.no_grad():
@@ -111,21 +110,18 @@ class RolloutValidator:
                     
                     running_loss += self.loss_fn(y_pred, y).item()
                     
-                rollout_loss += self.loss_fn(y_pred, y).item()
                 average_loss += running_loss / num_steps
                 
                 if (batch_idx % 350 == 0):
                     message = f'\r[Valid batch {batch_idx}/{num_batches}]'
-                    message += f'[Rollout = {rollout_loss/(batch_idx+1):0.4e}]'
+                    message += f'[Rollout = {average_loss/(batch_idx+1):0.4e}]'
                     print(message, end='')
                 
             print('\r', end='')
         
-        rollout_loss  /= num_batches
         average_loss  /= num_batches
-        valid_message  = f"[Rollout Loss: {rollout_loss:.6e}]"
+        valid_message  = f"[Rollout Loss: {average_loss:.6e}]"
         valid_metadata = {
-            'rollout_loss' : rollout_loss,
             'rollout_average_loss' : average_loss
         }
         return valid_metadata, valid_message

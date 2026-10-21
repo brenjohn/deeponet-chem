@@ -147,6 +147,69 @@ class FiveStepRolloutDataset(Dataset):
         rollout_sequence = (params_tensor, target_tensor)
         
         return initial_state, rollout_sequence
+    
+
+
+class FullRolloutDataset(Dataset):
+    """
+    """
+    def __init__(
+            self, 
+            dataset_path,
+            metadata,
+            num_tracers
+        ):
+        self.dataset_path = dataset_path
+        self.metadata     = metadata
+        self.num_tracers  = num_tracers
+        
+        self.data = np.load(dataset_path, mmap_mode="r")
+        
+        self.n_params               = self.metadata['n_params']
+        self.rows_per_tracer        = self.metadata['rows_per_tracer']
+        self.chem_per_hydro         = self.metadata['chem_per_hydro']
+        self.hydro_steps_per_tracer = self.metadata['num_hydro_steps']
+        
+        dt_min = self.metadata['bounds']['dt_min']
+        dt_max = self.metadata['bounds']['dt_max']
+        self.time_step = dt_min / dt_max
+        self.dt = [
+            tensor([i * self.time_step], dtype=torch.float32)
+            for i in range(6)
+        ]
+
+
+    def __len__(self):
+        return self.num_tracers
+    
+    
+    def __getitem__(self, sample_ind):
+        start = self.rows_per_tracer * sample_ind
+        block = np.asarray(self.data[start : start + self.rows_per_tracer])
+        
+        u_init = tensor(block[0, :-1], dtype=torch.float32)
+        t_step = self.dt[-1]
+        
+        params_seq = []
+        target_seq = []
+        
+        for step in range(self.hydro_steps_per_tracer):
+            
+            ind = (step + 1) * self.chem_per_hydro
+            p_step = tensor(block[ind, :self.n_params], dtype=torch.float32)
+            y_step = tensor(block[ind, self.n_params:-1], dtype=torch.float32)
+            
+            params_seq.append(p_step)
+            target_seq.append(y_step)
+            
+        # Stack into tensors: shape becomes [num_steps, feature_dim]
+        params_tensor = torch.stack(params_seq)
+        target_tensor = torch.stack(target_seq)
+        
+        initial_state = (u_init, t_step)
+        rollout_sequence = (params_tensor, target_tensor)
+        
+        return initial_state, rollout_sequence
 
 
 
