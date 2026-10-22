@@ -143,6 +143,11 @@ class Trainer:
                     checkpoint.mkdir(parents=True, exist_ok=True)
                     self.save_checkpoint(checkpoint)
                     print(f"Saved model with validation loss: {primary_loss}")
+            
+            # Save the current model
+            checkpoint = save_path / 'current_model'
+            checkpoint.mkdir(parents=True, exist_ok=True)
+            self.save_checkpoint(checkpoint)
                 
         return epoch_metadata
                 

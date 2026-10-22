@@ -108,8 +108,8 @@ class FiveStepRolloutDataset(Dataset):
             for i in range(6)
         ]
         
-        self.samples_per_tracer   = self.hydro_steps_per_tracer
-        self.samples_per_tracer //= self.hydro_steps_per_sample
+        self.samples_per_tracer  = self.hydro_steps_per_tracer
+        self.samples_per_tracer -= self.hydro_steps_per_sample
         self.num_samples = self.num_tracers * self.samples_per_tracer
         
         self.rows_per_sample  = self.hydro_steps_per_sample
@@ -121,7 +121,13 @@ class FiveStepRolloutDataset(Dataset):
     
     
     def __getitem__(self, sample_ind):
-        start = self.rows_per_sample * sample_ind
+        tracer = sample_ind // self.samples_per_tracer
+        tracer_start = tracer * self.rows_per_tracer
+        
+        sample = sample_ind % self.samples_per_tracer
+        sample_start = tracer_start + sample * self.chem_per_hydro
+        
+        start = sample_start
         block = np.asarray(self.data[start : start + self.rows_per_sample + 1])
         
         u_init = tensor(block[0, :-1], dtype=torch.float32)
