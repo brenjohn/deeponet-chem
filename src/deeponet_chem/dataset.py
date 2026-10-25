@@ -100,13 +100,13 @@ class FiveStepRolloutDataset(Dataset):
         self.hydro_steps_per_tracer = self.metadata['num_hydro_steps']
         self.hydro_steps_per_sample = 5
         
-        dt_min = self.metadata['bounds']['dt_min']
-        dt_max = self.metadata['bounds']['dt_max']
-        self.time_step = dt_min / dt_max
-        self.dt = [
-            tensor([i * self.time_step], dtype=torch.float32)
-            for i in range(6)
-        ]
+        # dt_min = self.metadata['bounds']['dt_min']
+        # dt_max = self.metadata['bounds']['dt_max']
+        # self.time_step = dt_min / dt_max
+        # self.dt = [
+        #     tensor([i * self.time_step], dtype=torch.float32)
+        #     for i in range(6)
+        # ]
         
         self.samples_per_tracer  = self.hydro_steps_per_tracer
         self.samples_per_tracer -= self.hydro_steps_per_sample
@@ -130,8 +130,8 @@ class FiveStepRolloutDataset(Dataset):
         start = sample_start
         block = np.asarray(self.data[start : start + self.rows_per_sample + 1])
         
-        u_init = tensor(block[0, :-1], dtype=torch.float32)
-        t_step = self.dt[-1]
+        y_init = tensor(block[0, self.n_params:-1], dtype=torch.float32)
+        p_init = tensor(block[0, :self.n_params], dtype=torch.float32)
         
         params_seq = []
         target_seq = []
@@ -149,7 +149,7 @@ class FiveStepRolloutDataset(Dataset):
         params_tensor = torch.stack(params_seq)
         target_tensor = torch.stack(target_seq)
         
-        initial_state = (u_init, t_step)
+        initial_state = (y_init, p_init)
         rollout_sequence = (params_tensor, target_tensor)
         
         return initial_state, rollout_sequence
@@ -176,13 +176,13 @@ class FullRolloutDataset(Dataset):
         self.chem_per_hydro         = self.metadata['chem_per_hydro']
         self.hydro_steps_per_tracer = self.metadata['num_hydro_steps']
         
-        dt_min = self.metadata['bounds']['dt_min']
-        dt_max = self.metadata['bounds']['dt_max']
-        self.time_step = dt_min / dt_max
-        self.dt = [
-            tensor([i * self.time_step], dtype=torch.float32)
-            for i in range(6)
-        ]
+        # dt_min = self.metadata['bounds']['dt_min']
+        # dt_max = self.metadata['bounds']['dt_max']
+        # self.time_step = dt_min / dt_max
+        # self.dt = [
+        #     tensor([i * self.time_step], dtype=torch.float32)
+        #     for i in range(6)
+        # ]
 
 
     def __len__(self):
@@ -193,8 +193,8 @@ class FullRolloutDataset(Dataset):
         start = self.rows_per_tracer * sample_ind
         block = np.asarray(self.data[start : start + self.rows_per_tracer])
         
-        u_init = tensor(block[0, :-1], dtype=torch.float32)
-        t_step = self.dt[-1]
+        y_init = tensor(block[0, self.n_params:-1], dtype=torch.float32)
+        p_init = tensor(block[0, :self.n_params], dtype=torch.float32)
         
         params_seq = []
         target_seq = []
@@ -212,7 +212,7 @@ class FullRolloutDataset(Dataset):
         params_tensor = torch.stack(params_seq)
         target_tensor = torch.stack(target_seq)
         
-        initial_state = (u_init, t_step)
+        initial_state = (y_init, p_init)
         rollout_sequence = (params_tensor, target_tensor)
         
         return initial_state, rollout_sequence

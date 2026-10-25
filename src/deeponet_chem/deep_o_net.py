@@ -23,7 +23,8 @@ class DeepONet(nn.Module):
             self,
             output_size,
             latent_size,
-            input_size, 
+            branch_input_size,
+            trunk_input_size,
             branch_size=70, 
             branch_layers=4,
             trunk_size=70, 
@@ -47,19 +48,20 @@ class DeepONet(nn.Module):
         self.latent_size = latent_size
         
         self.config = {
-            'output_size'   : output_size,
-            'latent_size'   : latent_size,
-            'input_size'    : input_size, 
-            'branch_size'   : branch_size, 
-            'branch_layers' : branch_layers,
-            'trunk_size'    : trunk_size, 
-            'trunk_layers'  : trunk_layers,
-            'activation'    : activation
+            'output_size'       : output_size,
+            'latent_size'       : latent_size,
+            'branch_input_size' : branch_input_size,
+            'trunk_input_size'  : trunk_input_size,
+            'branch_size'       : branch_size, 
+            'branch_layers'     : branch_layers,
+            'trunk_size'        : trunk_size, 
+            'trunk_layers'      : trunk_layers,
+            'activation'        : activation
         }
 
         # Define the Branch Network
         self.branch_net = self._build_network(
-            input_size, 
+            branch_input_size, 
             branch_size, 
             branch_layers, 
             latent_size * output_size,
@@ -68,7 +70,11 @@ class DeepONet(nn.Module):
 
         # Define the Trunk Network
         self.trunk_net = self._build_network(
-            1, trunk_size, trunk_layers, latent_size, activation
+            trunk_input_size, 
+            trunk_size, 
+            trunk_layers, 
+            latent_size, 
+            activation
         )
 
 

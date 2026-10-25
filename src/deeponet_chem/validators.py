@@ -95,20 +95,21 @@ class RolloutValidator:
                 
                 initial_state, rollout_sequence = batch
                 u = initial_state[0].to(device)
-                t = initial_state[1].to(device)
+                p = initial_state[1].to(device)
                 
                 params_tensor, target_tensor = rollout_sequence
                 running_loss = 0.0
                 num_steps = params_tensor.shape[1]
                     
                 for step in range(num_steps):
-                    p = params_tensor[:, step, :].to(device)
+                    y_pred = model(u, p)
+                    # u = torch.concat([p, y_pred.detach()], dim=1)
+                    
                     y = target_tensor[:, step, :].to(device)
-                    
-                    y_pred = model(u, t)
-                    u = torch.concat([p, y_pred.detach()], dim=1)
-                    
                     running_loss += self.loss_fn(y_pred, y).item()
+                    
+                    p = params_tensor[:, step, :].to(device)
+                    u = y_pred
                     
                 average_loss += running_loss / num_steps
                 

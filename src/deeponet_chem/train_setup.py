@@ -29,22 +29,22 @@ def setup_train_loader(paths, train_cfg):
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
 
-    onestep_dataset = OneStepTracerDataset(
-        data_dir / paths["train_data"],
-        metadata,
-        metadata["num_train_tracers"],
-    )
+    # onestep_dataset = OneStepTracerDataset(
+    #     data_dir / paths["train_data"],
+    #     metadata,
+    #     metadata["num_train_tracers"],
+    # )
     fivestep_dataset = FiveStepRolloutDataset(
         data_dir / paths["train_data"],
         metadata,
         metadata["num_train_tracers"],
     )
-    train_dataset = ZipDataset(
-        onestep_dataset,
-        fivestep_dataset,
-    )
+    # train_dataset = ZipDataset(
+    #     onestep_dataset,
+    #     fivestep_dataset,
+    # )
     train_loader = DataLoader(
-        train_dataset,
+        fivestep_dataset,
         batch_size = train_cfg["batch_size"],
         shuffle    = train_cfg.get("shuffle_train", True),
     )
