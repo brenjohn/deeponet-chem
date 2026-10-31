@@ -16,35 +16,30 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .trainer import Trainer
-from .validators import VALIDATORS
-from .dataset import OneStepTracerDataset, FiveStepRolloutDataset, ZipDataset
 from .deep_o_net import DeepONet
+from ..variants import VARIANT_REGISTRY
+
 
 
 def setup_train_loader(paths, train_cfg):
     """
     """
+    variant = train_cfg['variant']
+    dataset_constructor = VARIANT_REGISTRY[variant]['dataset']
+    
     data_dir = Path(paths.get("data_dir", "."))
     metadata_path = data_dir / paths["metadata_file"]
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
-
-    # onestep_dataset = OneStepTracerDataset(
-    #     data_dir / paths["train_data"],
-    #     metadata,
-    #     metadata["num_train_tracers"],
-    # )
-    fivestep_dataset = FiveStepRolloutDataset(
+    
+    train_dataset = dataset_constructor(
         data_dir / paths["train_data"],
         metadata,
         metadata["num_train_tracers"],
     )
-    # train_dataset = ZipDataset(
-    #     onestep_dataset,
-    #     fivestep_dataset,
-    # )
+    
     train_loader = DataLoader(
-        fivestep_dataset,
+        train_dataset,
         batch_size = train_cfg["batch_size"],
         shuffle    = train_cfg.get("shuffle_train", True),
     )
@@ -52,6 +47,8 @@ def setup_train_loader(paths, train_cfg):
 
 
 def setup_validators(paths, train_cfg):
+    variant = train_cfg['variant']
+    validator_constructors = VARIANT_REGISTRY[variant]['validators']
     validators = []
     
     data_dir = Path(paths.get("data_dir", "."))
@@ -61,8 +58,9 @@ def setup_validators(paths, train_cfg):
         metadata = json.load(file)
     
     for name in train_cfg['validators']:
+        constructor = validator_constructors[name]
         validators.append(
-            VALIDATORS[name](valid_data, metadata)
+            constructor(valid_data, metadata)
         )
     
     return validators

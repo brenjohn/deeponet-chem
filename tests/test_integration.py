@@ -13,8 +13,8 @@ import unittest
 
 from pathlib import Path
 
-from deeponet_chem.train_setup import start_training_run
-from deeponet_chem.mock_data import generate_mock_dataset
+from deeponet_chem import start_training_run
+from deeponet_chem import generate_mock_dataset
 
 
 class TestTrainingIntegration(unittest.TestCase):
@@ -52,24 +52,26 @@ class TestTrainingIntegration(unittest.TestCase):
         }
         
         self.model_cfg = {
-            "input_size":    self.n_params + self.n_species,
-            "output_size":   self.n_species,
-            "latent_size":   16,
-            "branch_size":   32,
-            "trunk_size":    32,
-            "branch_layers": 2,
-            "trunk_layers":  2,
-            "activation":    "tanh",
+            "output_size"       : self.n_species,
+            "branch_input_size" : self.n_species,
+            "trunk_input_size"  : self.n_params,
+            "latent_size"       : 16,
+            "branch_size"       : 32,
+            "trunk_size"        : 32,
+            "branch_layers"     : 2,
+            "trunk_layers"      : 2,
+            "activation"        : "tanh",
         }
         
         self.train_cfg = {
-            "batch_size":    7,
-            "learning_rate": 1e-3,
-            "weight_decay":  1e-4,
-            "num_epochs":    2,
-            "shuffle_train": True,
-            "validators":    ['OneStep', 'Rollout'],
-            "primary_loss":  'one_step_loss'
+            "variant"       : 'fixed_step',
+            "batch_size"    : 7,
+            "learning_rate" : 1e-3,
+            "weight_decay"  : 1e-4,
+            "num_epochs"    : 2,
+            "shuffle_train" : True,
+            "validators"    : ['Rollout'],
+            "primary_loss"  : 'rollout_average_loss'
         }
     
     
