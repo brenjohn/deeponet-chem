@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .trainer import Trainer
 from .deep_o_net import DeepONet
-from ..variants import VARIANT_REGISTRY
+from ..variants import VARIANT_FACTORIES
 
 
 
@@ -25,17 +25,17 @@ def setup_train_loader(paths, train_cfg):
     """
     """
     variant = train_cfg['variant']
-    dataset_constructor = VARIANT_REGISTRY[variant]['dataset']
+    variant_factory = VARIANT_FACTORIES[variant]()
     
     data_dir = Path(paths.get("data_dir", "."))
     metadata_path = data_dir / paths["metadata_file"]
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
     
-    train_dataset = dataset_constructor(
+    train_dataset = variant_factory.get_dataset(
         data_dir / paths["train_data"],
         metadata,
-        metadata["num_train_tracers"],
+        train_cfg
     )
     
     train_loader = DataLoader(
@@ -46,9 +46,10 @@ def setup_train_loader(paths, train_cfg):
     return train_loader
 
 
+
 def setup_validators(paths, train_cfg):
     variant = train_cfg['variant']
-    validator_constructors = VARIANT_REGISTRY[variant]['validators']
+    variant_factory = VARIANT_FACTORIES[variant]()
     validators = []
     
     data_dir = Path(paths.get("data_dir", "."))
@@ -58,12 +59,11 @@ def setup_validators(paths, train_cfg):
         metadata = json.load(file)
     
     for name in train_cfg['validators']:
-        constructor = validator_constructors[name]
-        validators.append(
-            constructor(valid_data, metadata)
-        )
+        validator = variant_factory.get_validator(name, valid_data, metadata)
+        validators.append(validator)
     
     return validators
+
 
 
 def setup_optimizer(model, train_cfg, device):
@@ -90,6 +90,7 @@ def setup_optimizer(model, train_cfg, device):
     return optimizer, scheduler
 
 
+
 def setup_model(model_cfg, train_cfg, device):
     """
     """
@@ -100,6 +101,7 @@ def setup_model(model_cfg, train_cfg, device):
     else:
         model = DeepONet(**model_cfg).to(device)
     return model
+
 
 
 def start_training_run(paths, model_cfg, train_cfg):

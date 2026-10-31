@@ -11,7 +11,7 @@ import argparse
 
 from pathlib import Path
 
-from deeponet_chem.train_setup import start_training_run
+from deeponet_chem import start_training_run
 
 
 def parse_args():

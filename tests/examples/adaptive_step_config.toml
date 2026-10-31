@@ -1,0 +1,26 @@
+[paths]
+data_dir      = "./data/"
+metadata_file = "metadata.json"
+train_data    = "train_dataset.npy"
+valid_data    = "valid_dataset.npy"
+checkpoints   = "best_model.pth"
+
+[model]
+output_size       = 14
+branch_input_size = 14
+trunk_input_size  = 7
+latent_size       = 32
+branch_size       = 32 
+branch_layers     = 2
+trunk_size        = 32 
+trunk_layers      = 2
+activation        = 'gelu'
+
+[training]
+variant       = 'adaptive_step'
+learning_rate = 4.6555e-4
+weight_decay  = 1.7190e-3
+batch_size    = 512
+num_epochs    = 350
+validators    = ['Rollout']
+primary_loss  = 'rollout_average_loss'
