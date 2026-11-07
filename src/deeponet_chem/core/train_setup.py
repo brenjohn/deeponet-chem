@@ -21,7 +21,7 @@ from ..variants import VARIANT_FACTORIES
 
 
 
-def setup_train_loader(paths, train_cfg):
+def setup_train_components(paths, train_cfg):
     """
     """
     variant = train_cfg['variant']
@@ -43,7 +43,8 @@ def setup_train_loader(paths, train_cfg):
         batch_size = train_cfg["batch_size"],
         shuffle    = train_cfg.get("shuffle_train", True),
     )
-    return train_loader
+    loss = variant_factory.get_loss_function()
+    return train_loader, loss
 
 
 
@@ -53,7 +54,7 @@ def setup_validators(paths, train_cfg):
     validators = []
     
     data_dir = Path(paths.get("data_dir", "."))
-    valid_data = data_dir / paths["train_data"]
+    valid_data = data_dir / paths["valid_data"]
     metadata_path = data_dir / paths["metadata_file"]
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
@@ -116,19 +117,20 @@ def start_training_run(paths, model_cfg, train_cfg):
     print(f"Using device: {device}")
 
     model                = setup_model(model_cfg, train_cfg, device)
-    train_loader         = setup_train_loader(paths, train_cfg)
+    train_loader, loss   = setup_train_components(paths, train_cfg)
     validators           = setup_validators(paths, train_cfg)
     optimizer, scheduler = setup_optimizer(model, train_cfg, device)
 
     # Initialize Trainer and Run
     trainer = Trainer(
-        model        = model,
-        optimizer    = optimizer,
-        scheduler    = scheduler,
-        train_loader = train_loader,
-        validators   = validators,
-        primary_loss = train_cfg['primary_loss'],
-        device       = device,
+        model         = model,
+        optimizer     = optimizer,
+        scheduler     = scheduler,
+        train_loader  = train_loader,
+        loss_function = loss,
+        validators    = validators,
+        primary_loss  = train_cfg['primary_loss'],
+        device        = device,
     )
 
     out_dir = Path(paths.get("output_dir", "."))

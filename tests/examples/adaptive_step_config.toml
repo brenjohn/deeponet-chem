@@ -7,8 +7,8 @@ checkpoints   = "best_model.pth"
 
 [model]
 output_size       = 14
-branch_input_size = 14
-trunk_input_size  = 7
+branch_input_size = 21
+trunk_input_size  = 1
 latent_size       = 32
 branch_size       = 32 
 branch_layers     = 2
@@ -21,6 +21,6 @@ variant       = 'adaptive_step'
 learning_rate = 4.6555e-4
 weight_decay  = 1.7190e-3
 batch_size    = 512
-num_epochs    = 350
-validators    = ['Rollout']
-primary_loss  = 'rollout_average_loss'
+num_epochs    = 2
+validators    = ['OneStep']
+primary_loss  = 'one_step_loss'

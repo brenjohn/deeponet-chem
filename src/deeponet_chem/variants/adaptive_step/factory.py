@@ -8,6 +8,7 @@ Created on Sat Oct 31 13:36:00 2026
 
 from .dataset import OneStepTracerDataset
 from .validators import VALIDATORS
+from .loss import OneStepLoss
 
 
 class OneStepFactory:
@@ -23,3 +24,7 @@ class OneStepFactory:
     
     def get_validator(self, name, valid_data, metadata):
         return VALIDATORS[name](valid_data, metadata)
+    
+    
+    def get_loss_function(self):
+        return OneStepLoss()

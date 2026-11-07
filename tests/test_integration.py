@@ -59,10 +59,55 @@ class TestTrainingIntegration(unittest.TestCase):
         self.temp_dir.cleanup()
     
     
-    def test_training_smoke(self):
+    def test_fixed_step_training(self):
         """Smoke test to run a couple of epochs with mock data."""
         
         with open('./examples/fixed_step_config.toml', 'rb') as file:
+            config = tomllib.load(file)
+            
+        paths     = config['paths']
+        model_cfg = config['model']
+        train_cfg = config['training']
+        paths['data_dir'] = str(self.test_output_dir / 'data')
+        paths['checkpoints'] = str(self.test_output_dir / 'checkpoints')
+        
+        # Run training loop
+        start_training_run(paths, model_cfg, train_cfg)
+        
+        # Assertions to verify correct execution and checkpoint creation
+        checkpoint_path = self.test_output_dir / "checkpoints"
+        self.assertTrue(
+            checkpoint_path.exists(),
+            "Checkpoints root directory was not created."
+        )
+        
+        checkpoint_dirs = list(checkpoint_path.glob('best_model_*'))
+        self.assertTrue(
+            len(checkpoint_dirs) > 0,
+            "No checkpoint subdirectories found."
+        )
+        
+        # Test restarting from a checkpoint.
+        restart_checkpoint_path = self.test_output_dir / "restart_checkpoint"
+        checkpoint_path = checkpoint_dirs[0]
+        train_cfg = train_cfg | {
+            'model_checkpoint'     : checkpoint_path / 'model.pt',
+            'optimizer_checkpoint' : checkpoint_path / 'optimizer.pt'
+        }
+        paths['checkpoints'] = restart_checkpoint_path
+        start_training_run(paths, model_cfg, train_cfg)
+        
+        # Assert correct execution and checkpoint creation
+        self.assertTrue(
+            restart_checkpoint_path.exists(),
+            "Restart checkpoint path was not created."
+        )
+        
+        
+    def test_adaptive_step_training(self):
+        """Smoke test to run a couple of epochs with mock data."""
+        
+        with open('./examples/adaptive_step_config.toml', 'rb') as file:
             config = tomllib.load(file)
             
         paths     = config['paths']

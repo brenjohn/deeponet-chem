@@ -9,7 +9,6 @@ Created on Mon Sep 28 10:09:07 2026
 import json
 import torch
 import optuna
-import torch.nn as nn
 
 from collections import defaultdict
 
@@ -23,7 +22,8 @@ class Trainer:
             model, 
             optimizer,
             scheduler,
-            train_loader, 
+            train_loader,
+            loss_function,
             validators, 
             primary_loss, 
             device
@@ -38,16 +38,16 @@ class Trainer:
             primary_loss : Which loss to prioritize when saving checkpoints.
             device       : The device to run training on.
         """
-        self.model        = model
-        self.optimizer    = optimizer
-        self.scheduler    = scheduler
-        self.train_loader = train_loader
-        self.validators   = validators
-        self.primary_loss = primary_loss
-        self.device       = device
+        self.model         = model
+        self.optimizer     = optimizer
+        self.scheduler     = scheduler
+        self.train_loader  = train_loader
+        self.loss_function = loss_function
+        self.validators    = validators
+        self.primary_loss  = primary_loss
+        self.device        = device
         
         self.model.to(self.device)
-        self.loss_fn = nn.MSELoss()
         self.best_valid_loss = float('inf')
         self.history = defaultdict(list)
 
@@ -64,31 +64,10 @@ class Trainer:
         total_loss = 0.0
         
         for batch_idx, batch in enumerate(self.train_loader):
-            # Unpack the batch data.
-            # u, t, y_true = [item.to(self.device) for item in one_batch]
-
             # Compute loss and update model
             self.optimizer.zero_grad()
             
-            # One step loss
-            # y_pred = self.model(u, t)
-            # loss = self.loss_fn(y_pred, y_true)
-            
-            # Five step loss
-            loss = 0
-            initial_state, rollout_sequence = batch
-            u = initial_state[0].to(self.device)
-            p = initial_state[1].to(self.device)
-            params_tensor, target_tensor = rollout_sequence
-            num_steps = params_tensor.shape[1]
-            for step in range(num_steps):
-                y_pred = self.model(u, p)
-                
-                y_grnd = target_tensor[:, step, :].to(self.device)
-                loss += self.loss_fn(y_pred, y_grnd) / num_steps
-                
-                p = params_tensor[:, step, :].to(self.device)
-                u = y_pred
+            loss = self.loss_function(self.model, batch, self.device)
             
             loss.backward()
             self.optimizer.step()

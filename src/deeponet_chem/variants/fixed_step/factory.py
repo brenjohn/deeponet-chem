@@ -8,6 +8,7 @@ Created on Sat Oct 31 13:12:03 2026
 
 from .dataset import RolloutDataset
 from .validators import VALIDATORS
+from .loss import RolloutLoss 
 
 
 class FixedStepFactory:
@@ -23,3 +24,7 @@ class FixedStepFactory:
     
     def get_validator(self, name, valid_data, metadata):
         return VALIDATORS[name](valid_data, metadata)
+    
+    
+    def get_loss_function(self):
+        return RolloutLoss()
