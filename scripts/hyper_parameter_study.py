@@ -15,11 +15,11 @@ import optuna
 
 torch.set_flush_denormal(True)
 
-from deeponet_chem.trainer import Trainer
-from deeponet_chem.train_setup import setup_train_loader
-from deeponet_chem.train_setup import setup_validators
-from deeponet_chem.train_setup import setup_model
-from deeponet_chem.train_setup import setup_optimizer
+from deeponet_chem import Trainer
+from deeponet_chem import setup_train_components
+from deeponet_chem import setup_validators
+from deeponet_chem import setup_model
+from deeponet_chem import setup_optimizer
 
 
 def sample_param(trial: optuna.Trial, param_name: str, config: dict):
@@ -70,26 +70,21 @@ def create_objective(config: dict, device):
             'activation'    : sample_param(trial, "activation",    search_cfg),
         }
         
-        # train_loader = setup_train_loader(paths, train_cfg)
-        # validators = setup_validators(paths, train_cfg)
-        # model, optimizer, scheduler = setup_model_and_optimizer(
-        #     model_cfg, train_cfg, device
-        # )
-        
         model                = setup_model(model_cfg, train_cfg, device)
-        train_loader         = setup_train_loader(paths, train_cfg)
+        train_loader, loss   = setup_train_components(paths, train_cfg)
         validators           = setup_validators(paths, train_cfg)
         optimizer, scheduler = setup_optimizer(model, train_cfg, device)
 
         # Initialize Trainer and Run
         trainer = Trainer(
-            model        = model,
-            optimizer    = optimizer,
-            scheduler    = scheduler,
-            train_loader = train_loader,
-            validators   = validators,
-            primary_loss = train_cfg['primary_loss'],
-            device       = device,
+            model         = model,
+            optimizer     = optimizer,
+            scheduler     = scheduler,
+            train_loader  = train_loader,
+            loss_function = loss,
+            validators    = validators,
+            primary_loss  = train_cfg['primary_loss'],
+            device        = device,
         )
 
         # Pass trial to trainer so it can report epoch losses & prune early
@@ -122,20 +117,6 @@ def main(config):
         pruner     = optuna.pruners.MedianPruner(),
         load_if_exists = True,
     )
-    
-    # try:
-    #     study = optuna.create_study(
-    #         study_name = optuna_cfg.get("study_name", "deeponet_hpo"),
-    #         direction  = optuna_cfg.get("direction", "minimize"),
-    #         storage    = storage,
-    #         pruner     = optuna.pruners.MedianPruner(),
-    #         load_if_exists = True,
-    #     )
-    # except Exception:
-    #     study = optuna.load_study(
-    #         study_name = optuna_cfg.get("study_name", "deeponet_hpo"),
-    #         storage    = storage,
-    #     )
 
     study.optimize(
         create_objective(config, device), 
@@ -157,7 +138,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("./tune_config.toml"),
+        default=Path("../example/tune_config.toml"),
         help="Path to tuning TOML configuration file",
     )
     args = parser.parse_args()

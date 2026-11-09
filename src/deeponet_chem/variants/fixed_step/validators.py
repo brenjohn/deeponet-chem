@@ -103,7 +103,7 @@ class LossMonitor:
         curr_batch = self.curr_batch
         if (curr_batch % 2 == 0):
             message = f'\r[Valid batch {self.curr_batch}/{self.num_batches}]'
-            message += f'[L2 = {self.average_l2/(curr_batch):0.4e}]'
+            message += f'[L2 = {self.average_l2/(self.num_rollouts):0.4e}]'
             message += f'[L_inf = {self.l_inf:0.4e}]'
             print(message, end='')
     
