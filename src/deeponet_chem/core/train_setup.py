@@ -105,12 +105,8 @@ def setup_model(model_cfg, train_cfg, device):
 
 
 
-def start_training_run(paths, model_cfg, train_cfg):
-    """
-    """
+def setup_trainer(paths, model_cfg, train_cfg):
     torch.set_flush_denormal(True)
-
-    # Set compute device
     device = torch.device(
         train_cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu")
     )
@@ -122,7 +118,7 @@ def start_training_run(paths, model_cfg, train_cfg):
     optimizer, scheduler = setup_optimizer(model, train_cfg, device)
 
     # Initialize Trainer and Run
-    trainer = Trainer(
+    return Trainer(
         model         = model,
         optimizer     = optimizer,
         scheduler     = scheduler,
@@ -131,7 +127,14 @@ def start_training_run(paths, model_cfg, train_cfg):
         validators    = validators,
         primary_loss  = train_cfg['primary_loss'],
         device        = device,
-    )
+    )    
+
+
+
+def start_training_run(paths, model_cfg, train_cfg):
+    """
+    """
+    trainer = setup_trainer(paths, model_cfg, train_cfg)
 
     out_dir = Path(paths.get("output_dir", "."))
     save_path = out_dir / paths.get("checkpoints", "./checkpoints")

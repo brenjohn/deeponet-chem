@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Nov 14 23:12:08 2026
+
+@author: john
+"""
+
+import torch
+import optuna
+
+torch.set_flush_denormal(True)
+
+from .train_setup import setup_trainer
+
+
+def sample_param(trial: optuna.Trial, param_name: str, config: dict):
+    """
+    Dynamically registers Optuna parameters based on dictionary specs from the
+    config TOML file.
+    """
+    spec = config[param_name]
+    param_type = spec["type"]
+
+    if param_type == "float":
+        return trial.suggest_float(
+            param_name, spec["low"], spec["high"], log=spec.get("log", False)
+        )
+    
+    elif param_type == "int":
+        return trial.suggest_int(param_name, spec["low"], spec["high"])
+    
+    elif param_type == "categorical":
+        return trial.suggest_categorical(param_name, spec["choices"])
+    
+    else:
+        raise ValueError(f"Unsupported search parameter type: {param_type}")
+
+
+
+def create_objective(config: dict, device):
+    """
+    """
+    paths      = config['paths']
+    model_base = config['model']
+    train_base = config['training']
+    
+    def objective(trial: optuna.Trial) -> float:
+        search_cfg = config["search_space"]
+        
+        train_cfg = train_base | {
+            'learning_rate' : sample_param(trial, "learning_rate", search_cfg),
+            'weight_decay'  : sample_param(trial, "weight_decay",  search_cfg),
+            'batch_size'    : sample_param(trial, "batch_size",    search_cfg)
+        }
+        
+        model_cfg = model_base | {
+            'latent_size'   : sample_param(trial, "latent_size",   search_cfg),
+            'branch_size'   : sample_param(trial, "branch_size",   search_cfg),
+            'trunk_size'    : sample_param(trial, "trunk_size",    search_cfg),
+            'branch_layers' : sample_param(trial, "branch_layers", search_cfg),
+            'trunk_layers'  : sample_param(trial, "trunk_layers",  search_cfg),
+            'activation'    : sample_param(trial, "activation",    search_cfg),
+        }
+        
+        trainer = setup_trainer(paths, model_cfg, train_cfg)
+
+        # Pass trial to trainer so it can report epoch losses & prune early
+        val_loss = trainer.train_with_optuna(trial, train_base['num_epochs'])
+        return val_loss
+
+    return objective
+
+
+
+def start_hpo_study(config):
+    # Set compute device
+    device = torch.device(
+        config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+    )
+    print(f"Using device: {device}")
+    
+    optuna_cfg = config["optuna"]
+    
+    storage = optuna.storages.JournalStorage(
+        optuna.storages.journal.JournalFileBackend(
+            optuna_cfg.get("storage", "./optuna_journal.log")
+        ),
+    )
+    
+    study = optuna.create_study(
+        study_name = optuna_cfg.get("study_name", "deeponet_hpo"),
+        direction  = optuna_cfg.get("direction", "minimize"),
+        storage    = storage,
+        pruner     = optuna.pruners.MedianPruner(),
+        load_if_exists = True,
+    )
+
+    study.optimize(
+        create_objective(config, device), 
+        n_trials = optuna_cfg.get("num_trials", 30),
+    )
+
+    print("\n--- Optimization Complete ---")
+    print(f"Best Trial: #{study.best_trial.number}")
+    print(f"Best Loss:  {study.best_value:.6f}")
+    print("Best Hyperparameters:")
+    for key, val in study.best_params.items():
+        print(f"  {key}: {val}")
