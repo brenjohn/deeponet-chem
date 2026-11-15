@@ -6,10 +6,10 @@ Created on Mon Sep 28 10:09:07 2026
 @author: jbrennan
 """
 
+import time
 import json
 import torch
 import optuna
-import torch.nn as nn
 
 from collections import defaultdict
 
@@ -23,7 +23,8 @@ class Trainer:
             model, 
             optimizer,
             scheduler,
-            train_loader, 
+            train_loader,
+            loss_function,
             validators, 
             primary_loss, 
             device
@@ -38,16 +39,16 @@ class Trainer:
             primary_loss : Which loss to prioritize when saving checkpoints.
             device       : The device to run training on.
         """
-        self.model        = model
-        self.optimizer    = optimizer
-        self.scheduler    = scheduler
-        self.train_loader = train_loader
-        self.validators   = validators
-        self.primary_loss = primary_loss
-        self.device       = device
+        self.model         = model
+        self.optimizer     = optimizer
+        self.scheduler     = scheduler
+        self.train_loader  = train_loader
+        self.loss_function = loss_function
+        self.validators    = validators
+        self.primary_loss  = primary_loss
+        self.device        = device
         
         self.model.to(self.device)
-        self.loss_fn = nn.MSELoss()
         self.best_valid_loss = float('inf')
         self.history = defaultdict(list)
 
@@ -62,16 +63,13 @@ class Trainer:
         self.model.train()
         dataset_size = len(self.train_loader)
         total_loss = 0.0
+        start_time = time.time()
         
         for batch_idx, batch in enumerate(self.train_loader):
-            # Unpack the batch data.
-            u, t, y_true = [item.to(self.device) for item in batch]
-
             # Compute loss and update model
             self.optimizer.zero_grad()
             
-            y_pred = self.model(u, t)
-            loss = self.loss_fn(y_pred, y_true)
+            loss = self.loss_function(self.model, batch, self.device)
             
             loss.backward()
             self.optimizer.step()
@@ -86,6 +84,7 @@ class Trainer:
         train_loss     = total_loss / len(self.train_loader)
         train_metadata =  {'train_loss' : train_loss}
         train_message  = f"[Train Loss: {train_loss:.6e}]"
+        train_message += f"[Epoch took {(time.time() - start_time):.2e} sec]"
         return train_metadata, train_message
 
 
@@ -129,6 +128,11 @@ class Trainer:
                     checkpoint.mkdir(parents=True, exist_ok=True)
                     self.save_checkpoint(checkpoint)
                     print(f"Saved model with validation loss: {primary_loss}")
+            
+            # Save the current model
+            checkpoint = save_path / 'current_model'
+            checkpoint.mkdir(parents=True, exist_ok=True)
+            self.save_checkpoint(checkpoint)
                 
         return epoch_metadata
                 

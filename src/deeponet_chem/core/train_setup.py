@@ -16,47 +16,55 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .trainer import Trainer
-from .validators import VALIDATORS
-from .dataset import OneStepTracerDataset
 from .deep_o_net import DeepONet
+from ..variants import VARIANT_FACTORIES
 
 
-def setup_train_loader(paths, train_cfg):
+
+def setup_train_components(paths, train_cfg):
     """
     """
+    variant = train_cfg['variant']
+    variant_factory = VARIANT_FACTORIES[variant]()
+    
     data_dir = Path(paths.get("data_dir", "."))
     metadata_path = data_dir / paths["metadata_file"]
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
-
-    train_dataset = OneStepTracerDataset(
+    
+    train_dataset = variant_factory.get_dataset(
         data_dir / paths["train_data"],
         metadata,
-        metadata["num_train_tracers"],
+        train_cfg
     )
+    
     train_loader = DataLoader(
         train_dataset,
         batch_size = train_cfg["batch_size"],
         shuffle    = train_cfg.get("shuffle_train", True),
     )
-    return train_loader
+    loss = variant_factory.get_loss_function()
+    return train_loader, loss
+
 
 
 def setup_validators(paths, train_cfg):
+    variant = train_cfg['variant']
+    variant_factory = VARIANT_FACTORIES[variant]()
     validators = []
     
     data_dir = Path(paths.get("data_dir", "."))
-    valid_data = data_dir / paths["train_data"]
+    valid_data = data_dir / paths["valid_data"]
     metadata_path = data_dir / paths["metadata_file"]
     with open(metadata_path, 'r') as file:
         metadata = json.load(file)
     
     for name in train_cfg['validators']:
-        validators.append(
-            VALIDATORS[name](valid_data, metadata)
-        )
+        validator = variant_factory.get_validator(name, valid_data, metadata)
+        validators.append(validator)
     
     return validators
+
 
 
 def setup_optimizer(model, train_cfg, device):
@@ -83,6 +91,7 @@ def setup_optimizer(model, train_cfg, device):
     return optimizer, scheduler
 
 
+
 def setup_model(model_cfg, train_cfg, device):
     """
     """
@@ -95,32 +104,37 @@ def setup_model(model_cfg, train_cfg, device):
     return model
 
 
-def start_training_run(paths, model_cfg, train_cfg):
-    """
-    """
-    torch.set_flush_denormal(True)
 
-    # Set compute device
+def setup_trainer(paths, model_cfg, train_cfg):
+    torch.set_flush_denormal(True)
     device = torch.device(
         train_cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu")
     )
     print(f"Using device: {device}")
 
     model                = setup_model(model_cfg, train_cfg, device)
-    train_loader         = setup_train_loader(paths, train_cfg)
+    train_loader, loss   = setup_train_components(paths, train_cfg)
     validators           = setup_validators(paths, train_cfg)
     optimizer, scheduler = setup_optimizer(model, train_cfg, device)
 
     # Initialize Trainer and Run
-    trainer = Trainer(
-        model        = model,
-        optimizer    = optimizer,
-        scheduler    = scheduler,
-        train_loader = train_loader,
-        validators   = validators,
-        primary_loss = train_cfg['primary_loss'],
-        device       = device,
-    )
+    return Trainer(
+        model         = model,
+        optimizer     = optimizer,
+        scheduler     = scheduler,
+        train_loader  = train_loader,
+        loss_function = loss,
+        validators    = validators,
+        primary_loss  = train_cfg['primary_loss'],
+        device        = device,
+    )    
+
+
+
+def start_training_run(paths, model_cfg, train_cfg):
+    """
+    """
+    trainer = setup_trainer(paths, model_cfg, train_cfg)
 
     out_dir = Path(paths.get("output_dir", "."))
     save_path = out_dir / paths.get("checkpoints", "./checkpoints")
