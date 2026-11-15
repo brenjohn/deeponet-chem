@@ -6,6 +6,7 @@ Created on Mon Sep 28 10:09:07 2026
 @author: jbrennan
 """
 
+import time
 import json
 import torch
 import optuna
@@ -62,6 +63,7 @@ class Trainer:
         self.model.train()
         dataset_size = len(self.train_loader)
         total_loss = 0.0
+        start_time = time.time()
         
         for batch_idx, batch in enumerate(self.train_loader):
             # Compute loss and update model
@@ -82,6 +84,7 @@ class Trainer:
         train_loss     = total_loss / len(self.train_loader)
         train_metadata =  {'train_loss' : train_loss}
         train_message  = f"[Train Loss: {train_loss:.6e}]"
+        train_message += f"[Epoch took {(time.time() - start_time):.2e} sec]"
         return train_metadata, train_message
 
 
