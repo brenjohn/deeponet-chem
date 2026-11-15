@@ -15,6 +15,7 @@ branch_layers     = 2
 trunk_size        = 32 
 trunk_layers      = 2
 activation        = 'gelu'
+residual_offset   = 0
 
 [training]
 variant       = 'fixed_step'

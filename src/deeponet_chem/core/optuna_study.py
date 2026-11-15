@@ -61,6 +61,7 @@ def create_objective(config: dict, device):
             'branch_layers' : sample_param(trial, "branch_layers", search_cfg),
             'trunk_layers'  : sample_param(trial, "trunk_layers",  search_cfg),
             'activation'    : sample_param(trial, "activation",    search_cfg),
+            'trunk_out_act' : sample_param(trial, "trunk_out_act", search_cfg),
         }
         
         trainer = setup_trainer(paths, model_cfg, train_cfg)

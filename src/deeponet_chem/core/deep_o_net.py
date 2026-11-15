@@ -27,9 +27,12 @@ class DeepONet(nn.Module):
             trunk_input_size,
             branch_size=70, 
             branch_layers=4,
+            branch_out_act=False,
             trunk_size=70, 
             trunk_layers=4,
-            activation='tanh'
+            trunk_out_act=True,
+            activation='tanh',
+            residual_offset=None,
         ):
         """
         DeepONet for solving IVPs.
@@ -44,8 +47,9 @@ class DeepONet(nn.Module):
         """
         super(DeepONet, self).__init__()
         
-        self.output_size = output_size
-        self.latent_size = latent_size
+        self.output_size     = output_size
+        self.latent_size     = latent_size
+        self.residual_offset = residual_offset
         
         self.config = {
             'output_size'       : output_size,
@@ -54,9 +58,12 @@ class DeepONet(nn.Module):
             'trunk_input_size'  : trunk_input_size,
             'branch_size'       : branch_size, 
             'branch_layers'     : branch_layers,
+            'branch_out_act'    : branch_out_act,
             'trunk_size'        : trunk_size, 
             'trunk_layers'      : trunk_layers,
-            'activation'        : activation
+            'trunk_out_act'     : trunk_out_act,
+            'activation'        : activation,
+            'residual_offset'   : residual_offset,
         }
 
         # Define the Branch Network
@@ -65,8 +72,16 @@ class DeepONet(nn.Module):
             branch_size, 
             branch_layers, 
             latent_size * output_size,
-            activation
+            activation,
+            branch_out_act
         )
+        
+        # Zero the final layer if a residual connection is used so the model
+        # starts at the identity map.
+        if residual_offset is not None:
+            nn.init.zeros_(self.branch_net[-1].weight)
+            if self.branch_net[-1].bias is not None:
+                nn.init.zeros_(self.branch_net[-1].bias)
 
         # Define the Trunk Network
         self.trunk_net = self._build_network(
@@ -74,7 +89,8 @@ class DeepONet(nn.Module):
             trunk_size, 
             trunk_layers, 
             latent_size, 
-            activation
+            activation,
+            trunk_out_act
         )
 
 
@@ -84,7 +100,8 @@ class DeepONet(nn.Module):
             layer_size, 
             num_layers, 
             output_size,
-            activation
+            activation,
+            final_activation
         ):
         """Helper function to build a multi-layer perceptron."""
         Activation = ACTIVATIONS[activation]
@@ -98,7 +115,8 @@ class DeepONet(nn.Module):
             curr_size = layer_size
             
         layers.append(nn.Linear(curr_size, output_size))
-        layers.append(Activation())
+        if final_activation:
+            layers.append(Activation())
 
         return nn.Sequential(*layers)
 
@@ -127,9 +145,11 @@ class DeepONet(nn.Module):
         )
         
         output = torch.matmul(branch_output, trunk_output[:, :, None])
-        output = torch.squeeze(output)
-        # [batch, output, latent] x [batch, latent] -> [batch, output]
-        # output = torch.einsum('bol,bl->bo', branch_output, trunk_output)
+        output = output.squeeze(-1)
+        
+        if self.residual_offset is not None:
+            offset = self.residual_offset
+            output = output + u[:, offset:offset + self.output_size]
         
         return output
     
@@ -149,7 +169,10 @@ class DeepONet(nn.Module):
         checkpoint = torch.load(
             path, map_location=map_location, weights_only=False
         )
-        model = cls(**checkpoint['config'])
+        config = checkpoint['config']
+        # TODO: remove this, it was meant to be tempoary so old checkpoints
+        # would load for comparison to new models.
+        config.setdefault('branch_final_activation', True)
+        model = cls(**config)
         model.load_state_dict(checkpoint['state_dict'])
         return model
-        

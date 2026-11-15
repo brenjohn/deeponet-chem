@@ -70,14 +70,20 @@ class RolloutValidator:
     
     
 class LossMonitor:
+    """Accumulates per-rollout losses over the validation set.
+    
+    The loss of a rollout is the MSE averaged over species and rollout steps.
+    Besides the mean over rollouts, the median and 95th percentile are reported
+    so that a few badly diverging tracers do not hide the behaviour of the
+    typical tracer.
+    """
     
     def __init__(self, num_batches):
         self.num_batches  = num_batches
         self.num_rollouts = 0
         self.curr_batch   = 0
         
-        self.loss_fn = nn.MSELoss()
-        self.average_l2 = 0.0
+        self.rollout_losses = []
         self.l_inf = 0.0
     
     
@@ -89,7 +95,8 @@ class LossMonitor:
     
     def record(self, y_pred, y_targ):
         self.num_steps += 1
-        self.running_l2 += self.loss_fn(y_pred, y_targ).item()
+        # Per-rollout MSE (mean over species) for this step: [batch].
+        self.running_l2 = self.running_l2 + ((y_pred - y_targ)**2).mean(dim=1)
         
         l_inf = torch.max(torch.abs(y_pred - y_targ)).item()
         if l_inf > self.l_inf:
@@ -97,13 +104,14 @@ class LossMonitor:
     
     
     def batch_ending(self):
-        self.average_l2 += self.running_l2 / self.num_steps
+        self.rollout_losses.append((self.running_l2 / self.num_steps).cpu())
         self.curr_batch += 1
         
         curr_batch = self.curr_batch
         if (curr_batch % 2 == 0):
+            running = torch.cat(self.rollout_losses).mean().item()
             message = f'\r[Valid batch {self.curr_batch}/{self.num_batches}]'
-            message += f'[L2 = {self.average_l2/(self.num_rollouts):0.4e}]'
+            message += f'[L2 = {running:0.4e}]'
             message += f'[L_inf = {self.l_inf:0.4e}]'
             print(message, end='')
     
@@ -111,11 +119,18 @@ class LossMonitor:
     def report(self):
         print('\r', end='')
         
-        self.average_l2 /= self.num_rollouts
-        valid_message  = f"[Rollout Loss: {self.average_l2:.6e}]"
+        losses  = torch.cat(self.rollout_losses).double()
+        average = losses.mean().item()
+        median  = losses.median().item()
+        p95     = torch.quantile(losses, 0.95).item()
+        
+        valid_message  = f"[Rollout Loss: {average:.6e}]"
+        valid_message += f"[median: {median:.3e}][p95: {p95:.3e}]"
         valid_metadata = {
-            'rollout_average_loss' : self.average_l2,
-            'rollout_max_loss' : self.l_inf,
+            'rollout_average_loss' : average,
+            'rollout_median_loss'  : median,
+            'rollout_p95_loss'     : p95,
+            'rollout_max_loss'     : self.l_inf,
         }
         return valid_metadata, valid_message
 

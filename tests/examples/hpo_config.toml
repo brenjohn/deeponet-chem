@@ -14,12 +14,13 @@ valid_data    = "valid_dataset.npy"
 output_size       = 14
 branch_input_size = 14
 trunk_input_size  = 7
+residual_offset   = 0
 
 [training]
-variant       = 'fixed_step'
-num_epochs    = 2
-validators    = ['Rollout']
-primary_loss  = 'rollout_average_loss'
+variant      = 'fixed_step'
+num_epochs   = 2
+validators   = ['Rollout']
+primary_loss = 'rollout_average_loss'
 
 [search_space]
 activation    = { type = "categorical", choices = ["tanh", "gelu"] }
@@ -31,3 +32,4 @@ trunk_layers  = { type = "int", low = 2, high = 3 }
 batch_size    = { type = "categorical", choices = [64, 128] }
 learning_rate = { type = "float", low = 1e-5, high = 5e-3, log = true }
 weight_decay  = { type = "float", low = 1e-6, high = 1e-2, log = true }
+trunk_out_act = { type = "categorical", choices = [true, false] }
